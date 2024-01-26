@@ -129,6 +129,7 @@ def vivino_reviews(wine_url, wine_name,
 
     # close browser
     driver.quit()
+    time.sleep(1) # wait for next run
 
     # save result
     df_reviews = pd.DataFrame.from_dict({'date':dates, 'review':reviews})
