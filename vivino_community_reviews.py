@@ -154,7 +154,8 @@ def concat_reviews(df_reviews, df, wine_name, col_rev, save=True, id_start=0):
     df[['id', 'wine']] = [wine_id, wine_name]
     df = df.reindex(columns=col_rev)
     if save:
-        df.to_csv(f'wine_{wine_id}.csv', index=False)
-    
+    	f = f'wine_{wine_id}.csv'
+        df.to_csv(f, index=False)
+    	print(f'{f} saved.')
     df_reviews = pd.concat([df_reviews if not df_reviews.empty else None, df])
     return df_reviews
