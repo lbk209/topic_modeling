@@ -95,29 +95,16 @@ def vivino_reviews(wine_url, wine_name,
         # testing
         #return list_d
 
-        i = check_idx
-        while True:
-            try:
-                d1 = datetime.strptime(list_d[-i], rev_date_format)
-                break
-            except ValueError:
-                i += 1
-            if i > 2*check_idx:
-                break
-        
-        if i > 2*check_idx:
-            print(f'{wine_name}: WARNING! fail before end_date {end_date}, check check_idx ({check_idx})')
-            break
-                
+        d1 = datetime.strptime(list_d[-check_idx], rev_date_format)
         d2 = datetime.strptime(end_date, '%Y%m%d')
         #print('testing:', d1)
 
         if ((len(reviews) > max_rev) or (d1 < d2)):
-            print(f'{wine_name}: {len(reviews)} reviews collected.')
+            print(f'{len(reviews)} reviews collected.')
             break
         elif (n_scr > max_scr):
             # redundunt as n_try checking max_scr as well?
-            print(f'{wine_name}: WARNING! No additional reviews after {max_scr} reloading.')
+            print(f'WARNING: No additional reviews after {max_scr} reloading.')
             break
         else:
             driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.PAGE_DOWN)
@@ -136,13 +123,12 @@ def vivino_reviews(wine_url, wine_name,
                     
                 if n_try > max_scr:
                     failed = False
-                    print(f'{wine_name}: WARNING! fail to collect all reviews')
+                    print('WARNING: fail to collect all reviews')
 
     pbar.close()
 
     # close browser
     driver.quit()
-    time.sleep(1) # wait for next run
 
     # save result
     df_reviews = pd.DataFrame.from_dict({'date':dates, 'review':reviews})
@@ -154,25 +140,17 @@ def vivino_reviews(wine_url, wine_name,
     return df_reviews
 
 
-def generate_wine_id(df_reviews):
+def generate_wine_id(df_reviews, id_start=0):
     if df_reviews.empty:
-        wid = 0
+        wid = id_start
     else:
         wid = df_reviews.id.max()
-        wid = 0 if wid is np.nan else wid+1 # check if no data row
+        wid = id_start if wid is np.nan else wid+1 # check if no data row
     return wid
 
 
-def concat_reviews(df_reviews, df, wine_name, col_rev, save=True):
-    """
-    df_reviews: dataframe or int for wine_id
-    """
-    if isinstance(df_reviews, int):
-        wine_id = df_reviews
-        df_reviews = pd.DataFrame()
-    else:
-        wine_id = generate_wine_id(df_reviews)
-        
+def concat_reviews(df_reviews, df, wine_name, col_rev, save=True, id_start=0):
+    wine_id = generate_wine_id(df_reviews, id_start=id_start)
     df[['id', 'wine']] = [wine_id, wine_name]
     df = df.reindex(columns=col_rev)
     if save:
