@@ -34,7 +34,8 @@ def vivino_reviews(wine_url, wine_name,
                    final_only = True,
                    check_idx = 4, # community review list has 3 old reviews at the end of list every loading of new reviews
                    rev_date_format = '%b %d, %Y',
-                   #headless = False # fail to locate loc1 if set to True
+                   #headless = False # fail to locate loc1 if set to True,
+                   source='vivino'
                   ):
 
     #if headless:
@@ -133,6 +134,7 @@ def vivino_reviews(wine_url, wine_name,
     # save result
     df_reviews = pd.DataFrame.from_dict({'date':dates, 'review':reviews})
     df_reviews['date'] = pd.to_datetime(df_reviews['date'])
+    df_reviews['source'] = source
     
     if False: #deprecated
         df_reviews.to_csv(filename, index=False)  
@@ -144,18 +146,21 @@ def generate_wine_id(df_reviews, id_start=0):
     if df_reviews.empty:
         wid = id_start
     else:
-        wid = df_reviews.id.max()
+        wid = df_reviews['wid'].max()
         wid = id_start if wid is np.nan else wid+1 # check if no data row
     return wid
 
 
-def concat_reviews(df_reviews, df, wine_name, col_rev, save=True, id_start=0):
+def concat_reviews(df_reviews, df, wine_name, col_rev, path=None, id_start=0):
+    """
+    save reviews of a wine and concat to existing reviews df_reviews 
+    """
     wine_id = generate_wine_id(df_reviews, id_start=id_start)
-    df[['id', 'wine']] = [wine_id, wine_name]
+    df[['wid', 'wine']] = [wine_id, wine_name]
     df = df.reindex(columns=col_rev)
-    if save:
-    	f = f'wine_{wine_id}.csv'
+    if path is not None:
+        f = f'{path}/wine_{wine_id}.csv'
         df.to_csv(f, index=False)
-    	print(f'{f} saved.')
+        print(f'{f} saved.')
     df_reviews = pd.concat([df_reviews if not df_reviews.empty else None, df])
     return df_reviews
