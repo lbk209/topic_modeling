@@ -15,6 +15,8 @@ import numpy as np
 from tqdm import tqdm
 from datetime import datetime
 
+import os
+
 
 def collect_reviews(class_name, driver, by=By.CLASS_NAME):
     l = driver.find_elements(by, class_name)
@@ -164,3 +166,20 @@ def concat_reviews(df_reviews, df, wine_name, col_rev, path=None, id_start=0):
         print(f'{f} saved.')
     df_reviews = pd.concat([df_reviews if not df_reviews.empty else None, df])
     return df_reviews
+
+
+def save_reviews(df_review, file, path='data'):
+    f = f'{path}/{file}'
+    if os.path.exists(f):
+        print(f'ERROR: {f} already exists')
+    else:
+        df_review.to_csv(f, index=False)
+        print(f'{f} saved.')
+    return None
+
+
+def load_reviews(file, path='data'):
+    f = f'{path}/{file}'
+    df = pd.read_csv(f, parse_dates=['date'])
+    print(f'{f} loaded.')
+    return df
