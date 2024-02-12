@@ -174,7 +174,7 @@ def vivino_reviews(wine_url, wine_name,
     # close browser
     driver.quit()
 
-    print(f'{len(reviews)} reviews collected.')
+    print(f'{wine_name}: {len(reviews)} reviews collected.')
 
     #return (dates, reviews) # testing
 
