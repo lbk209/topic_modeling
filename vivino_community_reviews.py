@@ -23,6 +23,29 @@ def collect_reviews(class_name, driver, by=By.CLASS_NAME):
     return [x.text for x in l]
     
 
+def check_list(list_d, null='', cnt_max=3, consecutive=True):
+    """
+    check null reviews such as 
+    ['', '', '', '', '', '', '', '', '', '', 'blackberry plum cherry oak']
+    """
+    if len(list_d) == 0:
+        return False
+    
+    result = True
+    cnt = 0
+    for i, x in enumerate(list_d, start=1):
+        if x == null:
+           cnt += 1 
+        if cnt >= cnt_max:
+            result = False
+            break
+    
+    if not (consecutive and i == cnt):
+        result = True
+
+    return result
+    
+
 def vivino_reviews(wine_url, wine_name, 
                    end_date = '20230101',
                    max_rev = 1e4, 
@@ -31,7 +54,8 @@ def vivino_reviews(wine_url, wine_name,
                    loc1=None, 
                    loc2=None, 
                    loc3=None, 
-                   loc4=None,
+                   loc4=None, # class name
+                   loc5=None, # class name
                    # take the final review list as the review page has same old reiviews at the end every update by scroll-down 
                    final_only = True,
                    check_idx = 4, # community review list has 3 old reviews at the end of list every loading of new reviews
@@ -51,28 +75,36 @@ def vivino_reviews(wine_url, wine_name,
     driver.get(wine_url)
     time.sleep(3)
 
-    loc3 = loc3.replace(' ', '.')
     loc4 = loc4.replace(' ', '.')
+    loc5 = loc5.replace(' ', '.')
 
     try:
-        # enter community reviews
+        # click all_reviews
         l = loc1
         driver.find_element(By.XPATH, loc1).click()
-        time.sleep(1)
+        time.sleep(2)
         
-        # Show reviews by recent
+        # enter community reviews
         l = loc2
         driver.find_element(By.XPATH, loc2).click()
         time.sleep(1)
-
+        
+        # Show reviews by recent
         l = loc3
-        list_r = collect_reviews(loc3, driver)
+        driver.find_element(By.XPATH, loc3).click()
+        time.sleep(1)
+
         l = loc4
-        list_d = collect_reviews(loc4, driver)
+        list_r = collect_reviews(loc4, driver)
+        l = loc5
+        list_d = collect_reviews(loc5, driver)
     except:
         print(f'ERROR) Check locator: {l}')
         driver.quit()
         return None
+
+    # testing
+    #return (list_r, list_d)
      
     reviews = list()
     dates = list()
@@ -82,7 +114,12 @@ def vivino_reviews(wine_url, wine_name,
     pbar = tqdm(position=0)
     
     while True:
-        n = len(list_r) - len(reviews)
+
+        if check_list(list_d):
+            n = len(list_r) - len(reviews)
+        else:
+            n = 0
+            
         if n > 0: # get new n reviews
             if final_only: # replace review list with the latest scan
                 reviews = list_r
@@ -96,14 +133,17 @@ def vivino_reviews(wine_url, wine_name,
             n_scr += 1
 
         # testing
-        #return list_d
+        #return (list_d, check_idx, rev_date_format)
+        #return (reviews, dates)
+        #return (list_r, list_d)
+        #print(list_r)
 
         d1 = datetime.strptime(list_d[-check_idx], rev_date_format)
         d2 = datetime.strptime(end_date, '%Y%m%d')
         #print('testing:', d1)
 
         if ((len(reviews) > max_rev) or (d1 < d2)):
-            print(f'{len(reviews)} reviews collected.')
+            #print(f'{len(reviews)} reviews collected.')
             break
         elif (n_scr > max_scr):
             # redundunt as n_try checking max_scr as well?
@@ -117,8 +157,8 @@ def vivino_reviews(wine_url, wine_name,
             n_try = 0
             while failed:
                 try:
-                    list_r = collect_reviews(loc3, driver)
-                    list_d = collect_reviews(loc4, driver)
+                    list_r = collect_reviews(loc4, driver)
+                    list_d = collect_reviews(loc5, driver)
                     failed = False
                 except StaleElementReferenceException:
                     time.sleep(time_scr)
@@ -127,15 +167,20 @@ def vivino_reviews(wine_url, wine_name,
                 if n_try > max_scr:
                     failed = False
                     print('WARNING: fail to collect all reviews')
+        
 
     pbar.close()
 
     # close browser
     driver.quit()
 
+    print(f'{len(reviews)} reviews collected.')
+
+    #return (dates, reviews) # testing
+
     # save result
     df_reviews = pd.DataFrame.from_dict({'date':dates, 'review':reviews})
-    df_reviews['date'] = pd.to_datetime(df_reviews['date'])
+    df_reviews['date'] = pd.to_datetime(df_reviews['date'], format=rev_date_format)
     df_reviews['source'] = source
     
     if False: #deprecated
