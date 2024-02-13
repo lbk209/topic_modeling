@@ -17,6 +17,10 @@ from datetime import datetime
 
 import os
 
+from sentence_transformers import SentenceTransformer, util
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 def collect_reviews(class_name, driver, by=By.CLASS_NAME):
     l = driver.find_elements(by, class_name)
@@ -60,14 +64,14 @@ def vivino_reviews(wine_url, wine_name,
                    final_only = True,
                    check_idx = 4, # community review list has 3 old reviews at the end of list every loading of new reviews
                    rev_date_format = '%b %d, %Y',
-                   #headless = False # fail to locate loc1 if set to True,
+                   headless = False,
                    source='vivino'
                   ):
 
-    #if headless:
+    #if headless: # not working
     if False:
         options = webdriver.ChromeOptions()
-        options.add_argument('headless')
+        options.add_argument(' --headless=new ')
     else:
         options = None
 
@@ -213,9 +217,9 @@ def concat_reviews(df_reviews, df, wine_name, col_rev, path=None, id_start=0):
     return df_reviews
 
 
-def save_reviews(df_review, file, path='data'):
+def save_reviews(df_review, file, path='data', overwrite=False):
     f = f'{path}/{file}'
-    if os.path.exists(f):
+    if os.path.exists(f) and not overwrite:
         print(f'ERROR: {f} already exists')
     else:
         df_review.to_csv(f, index=False)
@@ -228,3 +232,36 @@ def load_reviews(file, path='data'):
     df = pd.read_csv(f, parse_dates=['date'])
     print(f'{f} loaded.')
     return df
+
+
+def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
+    model = SentenceTransformer(st_id)
+    encode = lambda x: model.encode(x, convert_to_tensor=True)
+
+    list_n = list()
+    list_u = list()
+    list_s = list()
+    
+    for name, url in wines.items():
+        e1 = encode(name)
+        parts = url.split(split)
+        csims = [util.pytorch_cos_sim(e1, encode(x)) for x in parts]
+        mc = max(csims).item()
+        name2 = parts[csims.index(mc)]
+        #print(f'{mc.item():.2f}) {name}: {name2}')
+        list_n.append(name)
+        list_u.append(name2)
+        list_s.append(mc)
+
+    df = (pd.DataFrame()
+            .from_dict({'wine':list_n, 'url':list_u, 'similarity': list_s})
+           .sort_values('similarity'))
+
+    if print_parts:
+        n = 5
+        print(f'The top {n} pairs of least similarity:')
+        _ = [print(f'{x[3]:.2f}) {x[1]}: {x[2]}') for x in df.head(n).to_records()]
+
+    return df
+
+   
