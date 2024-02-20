@@ -1,6 +1,7 @@
 import collections
 import os
 import pandas as pd
+import numpy as np
 
 from typing import List, Union
 
@@ -41,9 +42,12 @@ def print_with_line_feed(input_string, line_length=50):
     print()  # Ensure the last line is printed
     
 
+
 class utils():
-    def __init__(self, topic_model):
+    def __init__(self, topic_model, reduced_embeddings=None):
         self.topic_model = topic_model
+        # for visualize_documents
+        self.reduced_embeddings = reduced_embeddings
         
     def print_topic_info(self):
         """
@@ -201,11 +205,32 @@ class utils():
             list_std.append(np.std(s))
 
         return (list_mean, list_median, list_std)
+        
+        
+    def visualize(self):
+        # return a instance of the class visualize
+        return visualize(self.topic_model, self.reduced_embeddings)
 
 
 class visualize():
-    def __init__(self, topic_model):
+    def __init__(self, topic_model, reduced_embeddings=None):
         self.topic_model = topic_model
+        self.reduced_embeddings = reduced_embeddings
+        
+    def visualize_documents(self, titles, list_tid=None, custom_labels=None,
+                            hide_annotations=True, hide_document_hover=False, **kwargs):
+        """
+        title: docs will be truncated if too long
+        custom_labels: set to False if custom label is long enough to fill the whole fig
+        """
+        titles = [x[:100] for x in titles]
+        if list_tid is None:
+            list_tid = range(20)
+
+        return self.topic_model.visualize_documents(titles, topics=list_tid, custom_labels=custom_labels,
+                                        hide_annotations=hide_annotations, hide_document_hover=hide_document_hover,
+                                        reduced_embeddings=self.reduced_embeddings, **kwargs)
+                                        
 
     def topics_per_param(self, df_result, res_docs,
                                    ncols=4, top_n_topics=None,

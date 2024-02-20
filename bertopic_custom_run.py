@@ -27,7 +27,8 @@ def bertopic_batch(docs,
                    random_state=42,
                    verbose=False,
                    hdbscan_model=None,
-                   custom_label='keybert'
+                   custom_label='keybert',
+                   reduced_embeddings=False
                    ):
 
     #-- sub-models
@@ -74,14 +75,24 @@ def bertopic_batch(docs,
 
         # set custom label
         if custom_label == 'keybert':
-            topic_model_post = utils(topic_model)
-            topic_model_post.set_custom_labels(name='KeyBERT')
+            tm_post = utils(topic_model)
+            tm_post.set_custom_labels(name='KeyBERT')
             
     except Exception as e:
-        print('ERROR', e)
-        topic_model_post = None
+        print('ERROR!:', e)
+        tm_post = None
+        
+    if (tm_post is not None) and reduced_embeddings:
+        if embeddings is None:
+            print('WARNING!: set embeddings first.')
+        else:
+            k = ['n_neighbors', 'min_dist','random_state']
+            v = [n_neighbors, min_dist, random_state]
+            kwargs = dict(zip(k, v))
+            reduced_embeddings = UMAP(n_components=2, metric='cosine', **kwargs).fit_transform(embeddings)
+            tm_post.reduced_embeddings = reduced_embeddings
 
-    return topic_model_post
+    return tm_post
 
 
 
