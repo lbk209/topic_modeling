@@ -76,12 +76,12 @@ def bertopic_batch(docs,
         if custom_label == 'keybert':
             topic_model_post = utils(topic_model)
             topic_model_post.set_custom_labels(name='KeyBERT')
-            topic_model = topic_model_post.topic_model
+            
     except Exception as e:
         print('ERROR', e)
-        topic_model = None
+        topic_model_post = None
 
-    return topic_model
+    return topic_model_post
 
 
 
