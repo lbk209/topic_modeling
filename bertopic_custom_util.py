@@ -10,13 +10,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.express as px
 
+from itertools import combinations
 
 def read_csv(file, path_data, **kwargs):
     """
     kwargs: keyword args for pd.read_csv
     """
     files = [x for x in os.listdir(path_data) if x.startswith(file)]
+    
+    if len(files) == 0:
+        print('ERROR!: No csv to read')
 
     df_reviews = pd.DataFrame()
     for f in files:
@@ -40,7 +45,7 @@ def print_with_line_feed(input_string, line_length=50):
             current_line_length = len(word) + 1
 
     print()  # Ensure the last line is printed
-    
+
 
 
 class utils():
@@ -48,6 +53,7 @@ class utils():
         self.topic_model = topic_model
         # for visualize_documents
         self.reduced_embeddings = reduced_embeddings
+        self.count_visualize = 0
         
     def print_topic_info(self):
         """
@@ -64,23 +70,27 @@ class utils():
         else:
             a = 0
         print(f'outliers: {a:.3f}')
+        
+        return df
 
 
-    def print_custom_labels(self, list_tid=None, length=120):
+    def print_custom_labels(self, list_tid=None, min_count=0, length=120):
         """
         list_tid: topics to print custom labels
         length: number of chars to print every line
         dict_label: dict of topic and custom label
         """
-        if not isinstance(list_tid, list):
-            list_tid = [list_tid]
-        
         tid_all = self.topic_model.topic_labels_.keys()
         dict_label = dict(zip(tid_all, self.topic_model.custom_labels_))
         
-        if list_tid is not None:
-            dict_label = {k:v for k,v in dict_label.items() if k in list_tid}
-
+        if list_tid is None:
+            df = self.topic_model.get_topic_info()
+            list_tid = df.loc[(df.Topic>-1) & (df.Count>=min_count)].Topic.to_list()
+        else:        
+            if not isinstance(list_tid, list):
+                list_tid = [list_tid]
+        
+        dict_label = {k:v for k,v in dict_label.items() if k in list_tid}
         _ = [print_with_line_feed(v, length) for k,v in dict_label.items()]
 
         return dict_label
@@ -124,7 +134,9 @@ class utils():
         #labels = {k: v[:length] + end for k,v in labels.items()}
         #labels = {k: '\n'.join([v[i:i+40] for i in range(0, len(v), 40)]) for k,v in labels.items()}
         self.topic_model.set_topic_labels(labels)
-
+        
+        if self.count_visualize > 0:
+            print('WARNING: create the instance of visualize again.')
         #return topic_model
         
         
@@ -207,23 +219,32 @@ class utils():
         return (list_mean, list_median, list_std)
         
         
-    def visualize(self):
+    def visualize(self, docs, classes=None):
+        self.count_visualize += 1
         # return a instance of the class visualize
-        return visualize(self.topic_model, self.reduced_embeddings)
+        return visualize(self.topic_model, docs, classes, self.reduced_embeddings)
 
 
 class visualize():
-    def __init__(self, topic_model, reduced_embeddings=None):
+    def __init__(self, topic_model, docs, classes=None, reduced_embeddings=None, custom_labels=False):
         self.topic_model = topic_model
+        self.docs = docs
+        self.classes = classes
         self.reduced_embeddings = reduced_embeddings
+        self.custom_labels = custom_labels
         
-    def visualize_documents(self, titles, list_tid=None, custom_labels=None,
+    def _check_flag_cl(self, custom_labels):
+        if custom_labels is None:
+            custom_labels = self.custom_labels
+        return custom_labels
+        
+    def visualize_documents(self, list_tid=None, custom_labels=None,
                             hide_annotations=True, hide_document_hover=False, **kwargs):
         """
-        title: docs will be truncated if too long
         custom_labels: set to False if custom label is long enough to fill the whole fig
         """
-        titles = [x[:100] for x in titles]
+        custom_labels = self._check_flag_cl(custom_labels)
+        titles = [x[:100] for x in self.docs]
         if list_tid is None:
             list_tid = range(20)
 
@@ -295,7 +316,7 @@ class visualize():
                                    topics: List[int] = None,
                                    normalize_frequency: bool = False,
                                    relative_share = False,
-                                   custom_labels: Union[bool, str] = False,
+                                   custom_labels = None,
                                    title: str = "<b>Topics per Class</b>",
                                    width: int = 1250,
                                    height: int = 900) -> go.Figure:
@@ -303,6 +324,7 @@ class visualize():
         customized BERTopic.visualize_topics_per_class:
          plot relative shares and display only the selected group
         """
+        custom_labels = self._check_flag_cl(custom_labels)
         topic_model = self.topic_model
         colors = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#D55E00", "#0072B2", "#CC79A7"]
 
@@ -414,12 +436,12 @@ class visualize():
                                        top_n_topics: int = 10,
                                        topics: List[int] = None,
                                        group: List[str] = None,
-                                       custom_labels: Union[bool, str] = False,
+                                       custom_labels = None,
                                        horizontal_spacing=.05,
                                        vertical_spacing=.3,
                                        width: int = 1200,
                                        height: int = 500) -> go.Figure:
-                                       
+        custom_labels = self._check_flag_cl(custom_labels)                        
         topic_model = self.topic_model
         
         subplot_titles = ['Topic per class', 'Topic per class']
@@ -470,4 +492,121 @@ class visualize():
     
     
     
+class param_study():
+    def __init__(self, df_score=None, df_score_stacked=None):
+        self.df_score = df_score
+        self.df_score_stacked = df_score_stacked
+        self.split_paramsets = None
+        self.split_kw = None
 
+
+    def import_topic(self, prefix, path_data='.'):
+        df_result = read_csv(prefix, path_data)
+
+        # find topic names
+        cols = [x for x in df_result.columns if x.isdigit()]
+
+        # convert values to list
+        df_result.loc[:, cols] = df_result.loc[:, cols].applymap(lambda x: eval(x) if x is not np.nan else np.nan)
+
+        # convert topics cols to int
+        cols_topic = [int(x) for x in cols]
+        return df_result.rename(columns=dict(zip(cols, cols_topic)))
+
+
+    def import_score(self, prefix, path_data='.', header=[0,1]):
+        df_score = read_csv(prefix, path_data, header=header)
+
+        # cast topic cols of 'mean', 'median' and 'std' to int
+        for x in df_score.columns.get_level_values(0).unique()[1:]:
+            cols = df_score[x].columns
+            df_score = df_score.rename(columns=dict(zip(cols, cols.astype(int))))
+        
+        if self.check_duplicates(df_score) > 0:
+            print('WARNING: drop duplicates first.')
+        self.df_score = df_score
+
+
+    def check_duplicates(self, df_score):
+        cols_param = list(df_score.columns)[:7]
+        a = df_score.loc[:,cols_param].duplicated().sum()
+        b = len(df_score)
+        print(f'{a} duplicated in {b} param sets')
+        return a
+
+
+    def check_non(self, obj, msg):
+        if obj is None:
+            print(f'ERROR!: {msg}')
+            return True
+        else:
+            return False
+
+
+    def stack(self, df_score=None):
+        if df_score is None:
+            df_score = self.df_score
+            if self.check_non(df_score, 'import a score file first'):
+                return None
+        
+        df_score.columns.names = [None,'Topic']
+        cond = (df_score.columns.get_level_values(0) == 'param')
+        cols = df_score.columns[cond].tolist()
+        self.df_score_stacked = df_score.set_index(cols).rename_axis([x[1] for x in cols]).stack().reset_index()
+
+
+    def visualize(self, params, kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
+                     width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0):
+        
+        df_score_stacked = self.df_score_stacked
+        if self.check_non(df_score_stacked, 'No stacked score'):
+            return None
+
+        kwa = dict(zip(kw, params))
+        kwa2 = kwa.copy()
+        if kwa_optional is not None:
+            kwa2.update(kwa_optional)
+
+        fig = func_plot(df_score_stacked.astype({kwa['color']: str}).sort_values(list(kwa.values())[2:]),
+                        width=width, height=height, 
+                        **kwa2)
+        
+        fig.update_layout(yaxis=dict(range=[0,1]))
+        
+        if marker_size > 0:
+            fig.update_traces(marker=dict(size=marker_size),
+                            selector=dict(mode='markers'))
+        #fig.show()
+        return fig
+
+    
+    def split_param_combinations(self, params, num_plots=5, 
+                                 kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
+                                 kwa_starts = ['Topic', 'mean']):
+        """
+        split combinations of param sets to num_plots for each plot
+        params: list of parameter names
+        """
+        list_psets_ = [kwa_starts + list(x) for x in list(combinations(params, len(kw)-len(kwa_starts)))]
+
+        divide_list = lambda list_x, n: [list_x[i*n:(i+1)*n] for i in range(len(list_x) // n + max(0, min(1, len(list_x) % n)))]
+        list_psets = divide_list(list_psets_, num_plots)
+
+        print(f'Plot groups from 0 to {len(list_psets)-1} created.')
+        self.split_paramsets = list_psets
+        self.split_kw = kw
+
+
+    def visualize_all(self, nth, width=1000, height=600, marker_size=3):
+        df_score_stacked = self.df_score_stacked
+        list_psets = self.split_paramsets
+        if (self.check_non(df_score_stacked, 'No stacked score') or
+            self.check_non(list_psets, 'Split combinations first')):
+            return None
+
+        kw = self.split_kw
+        figs = []
+        for p in list_psets[nth]:
+            f = self.visualize(p, kw, width=width, height=height, marker_size=marker_size)
+            figs.append(f)
+        return figs
