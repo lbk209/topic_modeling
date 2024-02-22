@@ -556,14 +556,20 @@ class param_study():
 
 
     def visualize(self, params, kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
-                     width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0):
-        
+                     width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0, marginal='box'):
+        """
+        marginal: "histogram", "rug", "box", or "violin"
+        """
         df_score_stacked = self.df_score_stacked
         if self.check_non(df_score_stacked, 'No stacked score'):
             return None
 
         kwa = dict(zip(kw, params))
         kwa2 = kwa.copy()
+        if 'facet_col' in kwa2.keys():
+           kwa2['marginal_x'] = marginal
+        if 'facet_row' in kwa2.keys():
+           kwa2['marginal_y'] = marginal
         if kwa_optional is not None:
             kwa2.update(kwa_optional)
 
