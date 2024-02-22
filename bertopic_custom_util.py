@@ -612,14 +612,14 @@ class param_study():
         list_psets = self._split_param_combinations(params, num_plots=num_plots, kw=kw, kwa_starts=kwa_starts)
         
         figs = []
-        for ps in list_psets:
-            t = {'title': 'test'}
-            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, kwa_optional=t) for p in ps]
+        for idx_f, ps in enumerate(list_psets):
+            t = lambda i: {'title': f'output_function({idx_f}, [{i}])'}
+            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, kwa_optional=t(idx_c)) for idx_c, p in enumerate(ps)]
             figs.append(fs)
         #return figs
         n = len(figs)
         print(f'{n} figs of {num_plots} param combinations created.')
         print(f'output is a function of {n} figs whose argument is a integer from 0 to {n-1}.')
-        return lambda idx_g, idx_c=range(num_plots): [f.show() for i, f in enumerate(figs[idx_g]) if i in idx_c]
+        return lambda idx_f, idx_c=range(num_plots): [f.show() for i, f in enumerate(figs[idx_f]) if i in idx_c]
 
 
