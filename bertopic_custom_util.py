@@ -613,8 +613,9 @@ class param_study():
         
         figs = []
         for ps in list_psets:
-             fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size) for p in ps]
-             figs.append(fs)
+            t = {'title': 'test'}
+            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, kwa_optional=t) for p in ps]
+            figs.append(fs)
         #return figs
         n = len(figs)
         print(f'{n} figs of {num_plots} param combinations created.')
