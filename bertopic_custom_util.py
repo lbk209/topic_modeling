@@ -340,18 +340,19 @@ class visualize():
 
 
     def topics_per_class(self,
-                           topics_per_class: pd.DataFrame,
-                           group: List[str] = None,
-                           docs: List[str] = None,
-                           classes: List[str] = None,
-                           top_n_topics: int = 10,
-                           topics: List[int] = None,
-                           normalize_frequency: bool = False,
-                           relative_share = False,
-                           custom_labels = None,
-                           title: str = "<b>Topics per Class</b>",
-                           width: int = 1250,
-                           height: int = 900) -> go.Figure:
+                         topics_per_class: pd.DataFrame,
+                         group: List[str] = None,
+                         docs: List[str] = None,
+                         # classes optional
+                         classes: List[str] = None,
+                         top_n_topics: int = 10,
+                         topics: List[int] = None,
+                         normalize_frequency: bool = False,
+                         relative_share = False,
+                         custom_labels = None,
+                         title: str = "<b>Topics per Class</b>",
+                         width: int = 1250,
+                         height: int = 900) -> go.Figure:
         """
         customized BERTopic.visualize_topics_per_class:
          plot relative shares and display only the selected group
@@ -464,9 +465,10 @@ class visualize():
 
 
     def topics_per_class_all(self,
+                             # classes required if no classes assigned when creating instance
+                             classes: List[str] = None, 
                              group: List[str] = None,
                              docs: List[str] = None,
-                             classes: List[str] = None,
                              top_n_topics: int = 10,
                              topics: List[int] = None,
                              custom_labels = None,
