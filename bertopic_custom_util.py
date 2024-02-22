@@ -496,10 +496,8 @@ class param_study():
     def __init__(self, df_score=None, df_score_stacked=None):
         self.df_score = df_score
         self.df_score_stacked = df_score_stacked
-        self.split_paramsets = None
-        self.split_kw = None
 
-
+    
     def import_topic(self, prefix, path_data='.'):
         df_result = read_csv(prefix, path_data)
 
@@ -588,7 +586,7 @@ class param_study():
         return fig
 
     
-    def split_param_combinations(self, params, num_plots=5, 
+    def _split_param_combinations(self, params, num_plots=5, 
                                  kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
                                  kwa_starts = ['Topic', 'mean']):
         """
@@ -601,20 +599,23 @@ class param_study():
         list_psets = divide_list(list_psets_, num_plots)
 
         print(f'Plot groups from 0 to {len(list_psets)-1} created.')
-        self.split_paramsets = list_psets
-        self.split_kw = kw
+        return list_psets
+        
 
-
-    def visualize_all(self, nth, width=1000, height=600, marker_size=3):
+    def visualize_all(self, params, num_plots=5, 
+                      kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
+                      kwa_starts = ['Topic', 'mean'],
+                      width=1000, height=600, marker_size=3):
         df_score_stacked = self.df_score_stacked
-        list_psets = self.split_paramsets
-        if (self.check_non(df_score_stacked, 'No stacked score') or
-            self.check_non(list_psets, 'Split combinations first')):
+        if self.check_non(df_score_stacked, 'No stacked score'):
             return None
-
-        kw = self.split_kw
+        list_psets = self._split_param_combinations(params, num_plots=num_plots, kw=kw, kwa_starts=kwa_starts)
+        
         figs = []
-        for p in list_psets[nth]:
-            f = self.visualize(p, kw, width=width, height=height, marker_size=marker_size)
-            figs.append(f)
-        return figs
+        for ps in list_psets:
+             fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size) for p in ps]
+             figs.append(fs)
+        #return figs
+        return lambda i: [f.show() for f in figs[i]]
+
+
