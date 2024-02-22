@@ -567,9 +567,10 @@ class param_study():
         if kwa_optional is not None:
             kwa2.update(kwa_optional)
 
-        fig = func_plot(df_score_stacked.astype({kwa['color']: str}).sort_values(list(kwa.values())[2:]),
-                        width=width, height=height, 
-                        **kwa2)
+        # sort params to display param values in ascending order
+        # convert numeric color to categorical str for a categorical legend display
+        fig = func_plot(df_score_stacked.sort_values(list(kwa.values())[2:]).astype({kwa['color']: str}),
+                        width=width, height=height, **kwa2)
         
         fig.update_layout(yaxis=dict(range=[0,1]))
         
