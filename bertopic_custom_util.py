@@ -232,6 +232,7 @@ class visualize():
         self.classes = classes
         self.reduced_embeddings = reduced_embeddings
         self.custom_labels = custom_labels
+        self.hierarchical_topics = None
         
     def _check_flag_cl(self, custom_labels):
         if custom_labels is None:
@@ -252,6 +253,18 @@ class visualize():
         return self.topic_model.visualize_documents(docs, topics=list_tid, custom_labels=custom_labels,
                                         hide_annotations=hide_annotations, hide_document_hover=hide_document_hover,
                                         reduced_embeddings=self.reduced_embeddings, **kwargs)
+
+
+    def visualize_hierarchy(self, **kwargs):
+        # Extract hierarchical topics and their representations
+        self.hierarchical_topics = self.topic_model.hierarchical_topics(self.docs)
+    
+        # Visualize these representations
+        return self.topic_model.visualize_hierarchy(hierarchical_topics=self.hierarchical_topics, **kwargs)
+
+
+    def visualize_barchart(self, **kwargs):
+        return self.topic_model.visualize_barchart(**kwargs)
                                         
 
     def topics_per_param(self, df_result, res_docs,
@@ -442,6 +455,9 @@ class visualize():
                                        vertical_spacing=.3,
                                        width: int = 1200,
                                        height: int = 500) -> go.Figure:
+        """
+        plot both of freq and relative share
+        """
         custom_labels = self._check_flag_cl(custom_labels)                        
         topic_model = self.topic_model
         
