@@ -31,6 +31,10 @@ def bertopic_batch(docs,
                    reduced_embeddings=False
                    ):
 
+    if (embeddings is None) and reduced_embeddings:
+        print('WARNING!: Set embeddings for 2D plot or Set reduced_embeddings to False.')
+        return None
+
     #-- sub-models
     vectorizer_model = CountVectorizer(stop_words="english", ngram_range=ngram_range,
                                        min_df=min_df, max_df=max_df)
@@ -83,14 +87,11 @@ def bertopic_batch(docs,
         tm_post = None
         
     if (tm_post is not None) and reduced_embeddings:
-        if embeddings is None:
-            print('WARNING!: set embeddings first.')
-        else:
-            k = ['n_neighbors', 'min_dist','random_state']
-            v = [n_neighbors, min_dist, random_state]
-            kwargs = dict(zip(k, v))
-            reduced_embeddings = UMAP(n_components=2, metric='cosine', **kwargs).fit_transform(embeddings)
-            tm_post.reduced_embeddings = reduced_embeddings
+        k = ['n_neighbors', 'min_dist','random_state']
+        v = [n_neighbors, min_dist, random_state]
+        kwargs = dict(zip(k, v))
+        reduced_embeddings = UMAP(n_components=2, metric='cosine', **kwargs).fit_transform(embeddings)
+        tm_post.reduced_embeddings = reduced_embeddings
 
     return tm_post
 
