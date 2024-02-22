@@ -558,7 +558,7 @@ class param_study():
     def visualize(self, params, kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
                      width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0, marginal='box'):
         """
-        marginal: "histogram", "rug", "box", or "violin"
+        marginal: "histogram", "rug", "box", or "violin". None for no Marginal Distribution Plot
         """
         df_score_stacked = self.df_score_stacked
         if self.check_non(df_score_stacked, 'No stacked score'):
@@ -566,10 +566,11 @@ class param_study():
 
         kwa = dict(zip(kw, params))
         kwa2 = kwa.copy()
-        if 'facet_col' in kwa2.keys():
-           kwa2['marginal_x'] = marginal
-        if 'facet_row' in kwa2.keys():
-           kwa2['marginal_y'] = marginal
+        if marginal is not None:
+            if 'facet_col' not in kwa2.keys():
+               kwa2['marginal_y'] = marginal
+            if 'facet_row' not in kwa2.keys():
+               kwa2['marginal_x'] = marginal
         if kwa_optional is not None:
             kwa2.update(kwa_optional)
 
