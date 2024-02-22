@@ -238,17 +238,18 @@ class visualize():
             custom_labels = self.custom_labels
         return custom_labels
         
-    def visualize_documents(self, list_tid=None, custom_labels=None,
+    def visualize_documents(self, docs=None, list_tid=None, custom_labels=None,
                             hide_annotations=True, hide_document_hover=False, **kwargs):
         """
         custom_labels: set to False if custom label is long enough to fill the whole fig
         """
         custom_labels = self._check_flag_cl(custom_labels)
-        titles = [x[:100] for x in self.docs]
+        if docs is None:
+            docs = [x[:100] for x in self.docs]
         if list_tid is None:
             list_tid = range(20)
 
-        return self.topic_model.visualize_documents(titles, topics=list_tid, custom_labels=custom_labels,
+        return self.topic_model.visualize_documents(docs, topics=list_tid, custom_labels=custom_labels,
                                         hide_annotations=hide_annotations, hide_document_hover=hide_document_hover,
                                         reduced_embeddings=self.reduced_embeddings, **kwargs)
                                         
