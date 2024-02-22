@@ -598,7 +598,7 @@ class param_study():
         divide_list = lambda list_x, n: [list_x[i*n:(i+1)*n] for i in range(len(list_x) // n + max(0, min(1, len(list_x) % n)))]
         list_psets = divide_list(list_psets_, num_plots)
 
-        print(f'Plot groups from 0 to {len(list_psets)-1} created.')
+        #print(f'Fig groups from 0 to {len(list_psets)-1} created.')
         return list_psets
         
 
@@ -619,6 +619,6 @@ class param_study():
         n = len(figs)
         print(f'{n} figs of {num_plots} param combinations created.')
         print(f'output is a function of {n} figs whose argument is a integer from 0 to {n-1}.')
-        return lambda i: [f.show() for f in figs[i]]
+        return lambda idx_g, idx_c=range(num_plots): [f.show() for i, f in enumerate(figs[idx_g]) if i in idx_c]
 
 
