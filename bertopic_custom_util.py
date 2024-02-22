@@ -616,6 +616,9 @@ class param_study():
              fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size) for p in ps]
              figs.append(fs)
         #return figs
+        n = len(figs)
+        print(f'{n} figs of {num_plots} param combinations created.')
+        print(f'output is a function of {n} figs whose argument is a integer from 0 to {n-1}.')
         return lambda i: [f.show() for f in figs[i]]
 
 
