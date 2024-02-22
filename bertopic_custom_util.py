@@ -219,14 +219,15 @@ class utils():
         return (list_mean, list_median, list_std)
         
         
-    def visualize(self, docs, classes=None):
+    def visualize(self, docs=None, classes=None):
         self.count_visualize += 1
         # return a instance of the class visualize
-        return visualize(self.topic_model, docs, classes, self.reduced_embeddings)
+        return visualize(self.topic_model, docs=docs, classes=classes, 
+                         reduced_embeddings=self.reduced_embeddings)
 
 
 class visualize():
-    def __init__(self, topic_model, docs, classes=None, reduced_embeddings=None, custom_labels=False):
+    def __init__(self, topic_model, docs=None, classes=None, reduced_embeddings=None, custom_labels=False):
         self.topic_model = topic_model
         self.docs = docs
         self.classes = classes
@@ -238,26 +239,43 @@ class visualize():
         if custom_labels is None:
             custom_labels = self.custom_labels
         return custom_labels
-        
+
+    def _check_var(self, var_arg, var_self):
+        if var_arg is None:
+            var_arg = var_self
+        return var_arg
+
+    
     def visualize_documents(self, docs=None, list_tid=None, custom_labels=None,
                             hide_annotations=True, hide_document_hover=False, **kwargs):
         """
         custom_labels: set to False if custom label is long enough to fill the whole fig
         """
-        custom_labels = self._check_flag_cl(custom_labels)
+        docs = self._check_var(docs, self.docs)
         if docs is None:
-            docs = [x[:100] for x in self.docs]
+            print('ERROR!: No docs assigned')
+            return None
+        else:
+            docs = [x[:100] for x in docs]
+            
         if list_tid is None:
             list_tid = range(20)
+            
+        custom_labels = self._check_flag_cl(custom_labels)
 
         return self.topic_model.visualize_documents(docs, topics=list_tid, custom_labels=custom_labels,
                                         hide_annotations=hide_annotations, hide_document_hover=hide_document_hover,
                                         reduced_embeddings=self.reduced_embeddings, **kwargs)
 
 
-    def visualize_hierarchy(self, **kwargs):
+    def visualize_hierarchy(self, docs=None, **kwargs):
+        docs = self._check_var(docs, self.docs)
+        if docs is None:
+            print('ERROR!: No docs assigned')
+            return None
+            
         # Extract hierarchical topics and their representations
-        self.hierarchical_topics = self.topic_model.hierarchical_topics(self.docs)
+        self.hierarchical_topics = self.topic_model.hierarchical_topics(docs)
     
         # Visualize these representations
         return self.topic_model.visualize_hierarchy(hierarchical_topics=self.hierarchical_topics, **kwargs)
@@ -322,24 +340,25 @@ class visualize():
 
 
     def topics_per_class(self,
-                                   topics_per_class: pd.DataFrame,
-                                   group: List[str] = None,
-                                   docs: List[str] = None,
-                                   classes: List[str] = None,
-                                   top_n_topics: int = 10,
-                                   topics: List[int] = None,
-                                   normalize_frequency: bool = False,
-                                   relative_share = False,
-                                   custom_labels = None,
-                                   title: str = "<b>Topics per Class</b>",
-                                   width: int = 1250,
-                                   height: int = 900) -> go.Figure:
+                           topics_per_class: pd.DataFrame,
+                           group: List[str] = None,
+                           docs: List[str] = None,
+                           classes: List[str] = None,
+                           top_n_topics: int = 10,
+                           topics: List[int] = None,
+                           normalize_frequency: bool = False,
+                           relative_share = False,
+                           custom_labels = None,
+                           title: str = "<b>Topics per Class</b>",
+                           width: int = 1250,
+                           height: int = 900) -> go.Figure:
         """
         customized BERTopic.visualize_topics_per_class:
          plot relative shares and display only the selected group
         """
         custom_labels = self._check_flag_cl(custom_labels)
         topic_model = self.topic_model
+        docs = self._check_var(docs, self.docs)
         colors = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#D55E00", "#0072B2", "#CC79A7"]
 
         if group is None:
@@ -445,23 +464,30 @@ class visualize():
 
 
     def topics_per_class_all(self,
-                                       docs: List[str],
-                                       classes: List[str],
-                                       top_n_topics: int = 10,
-                                       topics: List[int] = None,
-                                       group: List[str] = None,
-                                       custom_labels = None,
-                                       horizontal_spacing=.05,
-                                       vertical_spacing=.3,
-                                       width: int = 1200,
-                                       height: int = 500) -> go.Figure:
+                             group: List[str] = None,
+                             docs: List[str] = None,
+                             classes: List[str] = None,
+                             top_n_topics: int = 10,
+                             topics: List[int] = None,
+                             custom_labels = None,
+                             subplot_titles = ['Topic per class', 'Topic per class'],
+                             horizontal_spacing=.05,
+                             vertical_spacing=.3,
+                             width: int = 1200,
+                             height: int = 500) -> go.Figure:
         """
         plot both of freq and relative share
         """
         custom_labels = self._check_flag_cl(custom_labels)                        
         topic_model = self.topic_model
-        
-        subplot_titles = ['Topic per class', 'Topic per class']
+                                 
+        docs = self._check_var(docs, self.docs)
+        classes = self._check_var(classes, self.classes)
+        if (docs is None) or (classes is None):
+            print('ERROR!: docs and classes required')
+            return None
+        else:
+            topics_per_class = topic_model.topics_per_class(docs, classes=classes)
 
         fig = make_subplots(rows=1, cols=2,
                             shared_xaxes=False,
@@ -469,8 +495,6 @@ class visualize():
                             horizontal_spacing=horizontal_spacing,
                             vertical_spacing=0,
                             subplot_titles=subplot_titles)
-
-        topics_per_class = topic_model.topics_per_class(docs, classes=classes)
 
         # plot 1
         f = self.topics_per_class(topics_per_class,
