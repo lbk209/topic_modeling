@@ -673,7 +673,8 @@ class param_study():
             figs.append(fs)
         #return figs
         n = len(figs)
-        print(f'{n} figs of {num_plots} param combinations created.')
+        m = sum([len(x) for x in list_psets])
+        print(f'{n} figs of {num_plots} param combinations (total {m}) created.')
         print(f'output is a function of {n} figs whose argument is a integer from 0 to {n-1}.')
         return lambda idx_f, idx_c=range(num_plots): [f.show() for i, f in enumerate(figs[idx_f]) if i in idx_c]
 
