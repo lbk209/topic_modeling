@@ -49,10 +49,11 @@ def print_with_line_feed(input_string, line_length=50):
 
 
 class utils():
-    def __init__(self, topic_model, reduced_embeddings=None):
+    def __init__(self, topic_model, reduced_embeddings=None, docs=None):
         self.topic_model = topic_model
         # for visualize_documents
         self.reduced_embeddings = reduced_embeddings
+        self.docs = docs
         self.count_visualize = 0
         
     def print_topic_info(self):
@@ -111,6 +112,18 @@ class utils():
         return rep_docs
 
 
+    def merge_topics(self, topics_to_merge, docs=None, name='KeyBERT'):
+        if docs is None:
+            if self.docs is None:
+                print('ERROR!: docs required to merge topics')
+                return None
+            else:
+                docs = self.docs
+        self.topic_model.merge_topics(docs, topics_to_merge)
+        # update custom labels
+        self.set_custom_labels(name=name)
+
+    
     def get_topics(self, index, num_topics=None, cols = ['Topic', 'KeyBERT']):
         """
         get a row from df, the result of bertopic_batch
