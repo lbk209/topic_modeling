@@ -283,6 +283,10 @@ class visualize():
 
     def barchart(self, **kwargs):
         return self.topic_model.visualize_barchart(**kwargs)
+
+
+    def topics(self, **kwargs):
+        return self.topic_model.visualize_topics(**kwargs)
                                         
 
     def topics_per_multiclass(self, 
