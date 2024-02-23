@@ -246,7 +246,7 @@ class visualize():
         return var_arg
 
     
-    def visualize_documents(self, docs=None, list_tid=None, custom_labels=None,
+    def documents(self, docs=None, list_tid=None, custom_labels=None,
                             hide_annotations=True, hide_document_hover=False, **kwargs):
         """
         custom_labels: set to False if custom label is long enough to fill the whole fig
@@ -268,7 +268,7 @@ class visualize():
                                         reduced_embeddings=self.reduced_embeddings, **kwargs)
 
 
-    def visualize_hierarchy(self, docs=None, **kwargs):
+    def hierarchy(self, docs=None, **kwargs):
         docs = self._check_var(docs, self.docs)
         if docs is None:
             print('ERROR!: No docs assigned')
@@ -281,20 +281,28 @@ class visualize():
         return self.topic_model.visualize_hierarchy(hierarchical_topics=self.hierarchical_topics, **kwargs)
 
 
-    def visualize_barchart(self, **kwargs):
+    def barchart(self, **kwargs):
         return self.topic_model.visualize_barchart(**kwargs)
                                         
 
-    def topics_per_param(self, df_result, res_docs,
-                                   ncols=4, top_n_topics=None,
-                                   horizontal_spacing=.05,
-                                   vertical_spacing=.3,
-                                   width = 350, height = 350
-                                   ):
+    def topics_per_multiclass(self, 
+                         df_class: pd.DataFrame,
+                         docs=None,
+                         ncols=4, top_n_topics=None,
+                         horizontal_spacing=.05,
+                         vertical_spacing=.3,
+                         width = 350, height = 350):
         """
-        grid plot of classes (class is param)
+        grid plot of multi-classes (such as a set of param search)
+        df_class: dataframe of classes where columns are class names. 
+                  must be the same order of docs.
         """
-        subplot_titles = [x for x in df_result.columns if not isinstance(x, int)]
+        docs = self._check_var(docs, self.docs)
+        if docs is None:
+            print('ERROR!: docs required')
+            return None
+            
+        subplot_titles = [x for x in df_class.columns if not isinstance(x, int)]
         nrows = len(subplot_titles)//ncols+1
 
         fig = make_subplots(rows=nrows, cols=ncols,
@@ -305,8 +313,8 @@ class visualize():
 
         row, col = 1, 1
         for i, _ in enumerate(subplot_titles):
-            classes = df_result.iloc[:, i].apply(str)
-            topics_per_class = self.topic_model.topics_per_class(res_docs, classes=classes)
+            classes = df_class.iloc[:, i].apply(str)
+            topics_per_class = self.topic_model.topics_per_class(docs, classes=classes)
 
             f = self.topic_model.visualize_topics_per_class(topics_per_class,
                                                 top_n_topics=top_n_topics,
