@@ -609,7 +609,8 @@ class param_study():
 
 
     def visualize(self, params, kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
-                     width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0, marginal='box'):
+                  width=800, height=600, kwa_optional=None, func_plot=px.scatter, marker_size=0, marginal='box',
+                  yaxis_range=[0,1]):
         """
         marginal: "histogram", "rug", "box", or "violin". None for no Marginal Distribution Plot
         """
@@ -632,7 +633,7 @@ class param_study():
         fig = func_plot(df_score_stacked.sort_values(list(kwa.values())[2:]).astype({kwa['color']: str}),
                         width=width, height=height, **kwa2)
         
-        fig.update_layout(yaxis=dict(range=[0,1]))
+        fig.update_layout(yaxis=dict(range=yaxis_range))
         
         if marker_size > 0:
             fig.update_traces(marker=dict(size=marker_size),
@@ -660,7 +661,7 @@ class param_study():
     def visualize_all(self, params, num_plots=5, 
                       kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
                       kwa_starts = ['Topic', 'mean'],
-                      width=1000, height=600, marker_size=3):
+                      width=1000, height=600, marker_size=3, yaxis_range=[0,1]):
         df_score_stacked = self.df_score_stacked
         if self.check_non(df_score_stacked, 'No stacked score'):
             return None
@@ -669,7 +670,8 @@ class param_study():
         figs = []
         for idx_f, ps in enumerate(list_psets):
             t = lambda i: {'title': f'output_function({idx_f}, [{i}])'}
-            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, kwa_optional=t(idx_c)) for idx_c, p in enumerate(ps)]
+            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, 
+                                 kwa_optional=t(idx_c), yaxis_range=yaxis_range) for idx_c, p in enumerate(ps)]
             figs.append(fs)
         #return figs
         n = len(figs)
