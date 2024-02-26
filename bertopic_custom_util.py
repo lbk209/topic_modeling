@@ -234,6 +234,8 @@ class utils():
         
     def visualize(self, docs=None, classes=None):
         self.count_visualize += 1
+        if docs is None:
+            docs = self.docs
         # return a instance of the class visualize
         return visualize(self.topic_model, docs=docs, classes=classes, 
                          reduced_embeddings=self.reduced_embeddings)
