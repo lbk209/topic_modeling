@@ -1082,7 +1082,8 @@ class multi_topics_stats():
         title = self._get_topic_representation(topic_stats_df.topic_id.min(), df_topic_info, aspect)
         indent=' '*2
         title = split_str(title, length=title_length, split='<br>', indent=indent)
-        title = f'Topic_{topic}:<br>{indent}{title}'
+        #title = f'Topic_{topic}:<br>{indent}{title}'
+        title = f'Topic_{topic}: {title}'
 
         # set plot options depending on sentiment
         if self.sentiment:
