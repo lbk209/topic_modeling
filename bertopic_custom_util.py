@@ -1031,7 +1031,7 @@ class multi_topics_stats():
 
     def _check_aspect(self, df_topic_info, aspect, aspect_default='Representation'):
         aspect = self._check_var(aspect, self.aspect)
-        aspect_list = list(df_topic_info.columns)[3:]
+        aspect_list = list(df_topic_info.columns)[4:] # exclude CustomName as it must be one of other aspects (and not list as well)
         if aspect not in aspect_list:
             print(f'WARNING: aspect {aspect} is not in {aspect_list}')
             if aspect_default not in aspect_list:
