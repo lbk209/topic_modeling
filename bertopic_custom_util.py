@@ -1078,7 +1078,8 @@ class multi_topics_stats():
                                  class_order_ascending = None,
                                  aspect=None,
                                  title_font_size=14,
-                                 class_label_length=0):
+                                 class_label_length=0,
+                                 horizontal_bar=True):
         """
         barmode: 'stack', 'group', 'overlay', 'relative'
         class_order_ascending: None, True, False
@@ -1143,9 +1144,23 @@ class multi_topics_stats():
         if class_label_length > 0:
             df_plot[col_class] = df_plot[col_class].apply(lambda x: split_str(x, length=class_label_length, split='<br>'))
 
+        if horizontal_bar:
+            x = f'topic_{col_class}_share'
+            y = col_class
+            orientation='h'
+            plot_total_share = lambda fig, x, **kw: fig.add_vline(x=x, **kw)
+            kw_uplout = {'yaxis_title': None}
+        else:
+            x = col_class
+            y = f'topic_{col_class}_share'
+            orientation='v'
+            plot_total_share = lambda fig, y, **kw: fig.add_hline(y=y, **kw)
+            kw_uplout = {'xaxis_title': None}
+
         fig = px.bar(df_plot,
-                     x = col_class,
-                     y = f'topic_{col_class}_share',
+                     x = x,
+                     y = y,
+                     orientation=orientation,
                      title = title,
                      color = color,
                      category_orders = category_orders,
@@ -1158,7 +1173,8 @@ class multi_topics_stats():
 
         fig.update_layout(showlegend=showlegend,
                           title_font_size=title_font_size,
-                          xaxis={'automargin': True} # wine name still overlapping
+                          xaxis={'automargin': True}, # wine name still overlapping
+                          **kw_uplout
                           )
         fig.update_traces(**kw_up_traces)
 
@@ -1173,15 +1189,15 @@ class multi_topics_stats():
         if self.sentiment:
             topic_total_share = topic_total_share.sum()
 
-        fig.add_hline(y=topic_total_share,
-                    line_dash="dot",
-                    line_width=2,
-                    #line_color=colormap[8],
-                    #annotation_text=f'Topic_{topic} share {topic_total_share:.0f}%',
-                    annotation_text=f'topic share {topic_total_share:.0f}%',
-                    annotation_position="bottom right",
-                    #annotation_font_size=20,
-                    annotation_font_color="gray",
+        plot_total_share(fig, topic_total_share,
+                         line_dash="dot",
+                         line_width=2,
+                         #line_color=colormap[8],
+                         #annotation_text=f'Topic_{topic} share {topic_total_share:.0f}%',
+                         annotation_text=f'topic share {topic_total_share:.0f}%',
+                         annotation_position="bottom right",
+                         #annotation_font_size=20,
+                         annotation_font_color="gray",
                         )
 
         fig.show()
