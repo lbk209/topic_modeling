@@ -819,8 +819,10 @@ class multi_topics_stats():
         return threshold
 
 
-    def _relative_actuality(self, d, sign):
-        sign_percent = 1
+    def _relative_actuality(self, d, sign, sign_percent=1):
+        """
+        sign: 0 or 1
+        """
         if sign == 0:
             return 'no diff'
         if (d >= -sign_percent) and (d <= sign_percent):
@@ -1059,11 +1061,20 @@ class multi_topics_stats():
             return color_qual.Set2[0] # green
 
 
+    def get_opacity_significance(self, rel):
+        if rel == 'no diff':
+            return 0.2
+        if rel == 'lower':
+            return 0.6
+        if rel == 'higher':
+            return 1.0
+
+
     def visualize_class_by_topic(self, topic, df_topic_info=None,
                                  fsize=(600,400), ylabel='share of reviews',
                                  title_length=60, barmode='stack',
                                  sentiment_order = ['positive', 'neutral', 'negative'],
-                                 sentiment_color = [color_qual.Plotly[x] for x in [0,9,1]],
+                                 sentiment_color = [color_qual.Plotly[x] for x in [0,7,1]],
                                  class_order_ascending = None,
                                  aspect=None,
                                  title_font_size=14,
@@ -1106,7 +1117,9 @@ class multi_topics_stats():
         if self.sentiment:
             showlegend = True
             color = 'sentiment' # select legend
-            kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.8}
+            diff_opacity = list(map(self.get_opacity_significance,
+                                  topic_stats_df.diff_significance_total))
+            kw_up_traces = {'marker_line_width': 1.5, 'marker':{'opacity': diff_opacity}}
         else:
             showlegend = False
             color = None
@@ -1145,7 +1158,7 @@ class multi_topics_stats():
 
         fig.update_layout(showlegend=showlegend,
                           title_font_size=title_font_size,
-                          xaxis={'automargin': True} # still wine name overlapping
+                          xaxis={'automargin': True} # wine name still overlapping
                           )
         fig.update_traces(**kw_up_traces)
 
