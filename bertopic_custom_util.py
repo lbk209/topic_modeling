@@ -706,7 +706,7 @@ class param_study():
 
 
 class multi_topics_stats():
-    def __init__(self, topic_distr, topic_token_distr, df_data=None, df_topic_info=None):
+    def __init__(self, topic_distr, topic_token_distr, df_data=None, df_topic_info=None, col_class=None):
         self.topic_distr = topic_distr
         self.topic_token_distr = topic_token_distr
         self.multi_topics_df = None
@@ -715,6 +715,7 @@ class multi_topics_stats():
         self.df_topic_info = df_topic_info # BERTopic.get_topic_info()
         self.sentiment = False,
         self.aspect = None,
+        self.col_class = col_class
         self.class_order_ascending = None
 
 
@@ -725,7 +726,9 @@ class multi_topics_stats():
         """
         calculate the distribution of selected topics per review for different threshold levels
          and return optimized threshold to minimize the both documents of lowest number and largest number of topics
+        max_threshhold: max of x axis
         n_topics: 1~8
+        vl_max_share: see max_share of _search_min_theshold
         """
         topic_distr = self.topic_distr
 
@@ -781,8 +784,8 @@ class multi_topics_stats():
                               annotation_position="bottom right",
                               annotation_font_color="gray",
                             )
-                
-                
+
+
             fig.show()
 
         #self.num_topics_stats_df = num_topics_stats_df # testing
@@ -831,7 +834,7 @@ class multi_topics_stats():
     def get_multi_topics_list(self, topic_distr, threshold):
         multi_topics_list = list(map(
             lambda doc_topic_distr: list(map(
-                lambda y: y[0], filter(lambda x: x[1] >= threshold,
+                lambda y: y[0], filter(lambda x: x[1] > threshold,
                                         (enumerate(doc_topic_distr)))
             )), topic_distr
         ))
@@ -841,7 +844,7 @@ class multi_topics_stats():
     def get_multi_topics_df(self, df_data, topic_distr, threshold, cols_add,
                             sentiment=None, sentiment_func=None):
         """
-        get df of topic, docu id and class. 
+        get df of topic, docu id and class.
         count of id is num of all subsentences, which is greater than num of docs(nunique of id).
 
         df_data: dataframe of topic, document id, document class
@@ -859,7 +862,7 @@ class multi_topics_stats():
         if sentiment:
             if sentiment_func is None:
                 print('WARNING!: working without sentiment as no sentiment_analysis assigned.')
-            else:   
+            else:
                 df_data['sentiment'] = [sentiment_func(x) for x in multi_topics_list]
 
         # create multi_topics_df which shows many documents have multiple topics
@@ -893,7 +896,6 @@ class multi_topics_stats():
 
     def create_multi_topics_stats(self, threshold,
                                   df_data = None,
-                                  col_class='hotel',
                                   sentiment=None,
                                   sentiment_func=None,
                                   alpha=0.05,
@@ -908,6 +910,7 @@ class multi_topics_stats():
             return None
 
         topic_distr = self.topic_distr
+        col_class = self.col_class
         # self.sentiment being updated in get_multi_topics_df
         multi_topics_df = self.get_multi_topics_df(df_data, topic_distr, threshold, [col_class],
                                                    sentiment=sentiment, sentiment_func=sentiment_func)
@@ -953,7 +956,7 @@ class multi_topics_stats():
         # define class difference by practical significance (alpha)
         def calc_paval(x1, x2, n1, n2):
             # implemented as i cannot catch exception in proportions_ztest
-            if x1 + x2 == 0: 
+            if x1 + x2 == 0:
                 return None
             else:
                 return proportions_ztest(count = [x1, x2],
@@ -968,7 +971,7 @@ class multi_topics_stats():
             multi_topics_stats_df[f'other_{col_class}s_docs'],
             multi_topics_stats_df[f'total_{col_class}_docs']
         ))
-        
+
         df = multi_topics_stats_df['difference_pval']
         x = df.isna().sum() / len(df)
         if x > warning_ztest_r:
@@ -1012,25 +1015,34 @@ class multi_topics_stats():
             print('ERROR: Run create_multi_topics_stats first')
             return None
 
-        aspect = self._check_var(aspect, self.aspect)
-        
+        aspect = self._check_aspect(df_topic_info, aspect)
+        if aspect is None:
+            return None
+
         top_multi_topics_df = multi_topics_df.groupby('topic', as_index = False).id.nunique()
         # share is ratio of topic to all subsentences (not to num of documents)
         top_multi_topics_df['share_to_docs'] = 100.*top_multi_topics_df.id/top_multi_topics_df.id.sum()
         top_multi_topics_df['topic_repr'] = top_multi_topics_df.topic.map(
-            lambda x: self._get_topic_representation(x, df_topic_info, aspect=aspect, warning=False)
+            lambda x: self._get_topic_representation(x, df_topic_info, aspect=aspect)
         )
 
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def _get_topic_representation(self, topic, df_topic_info, aspect=None, warning=True):
+    def _check_aspect(self, df_topic_info, aspect, aspect_default='Representation'):
+        aspect = self._check_var(aspect, self.aspect)
         aspect_list = list(df_topic_info.columns)[3:]
         if aspect not in aspect_list:
-            if warning:
-                print(f'WARNING: {aspect} is not in {aspect_list}')
-            aspect = 'Representation'
+            print(f'WARNING: aspect {aspect} is not in {aspect_list}')
+            if aspect_default not in aspect_list:
+                print(f'ERROR: even default aspect {aspect_default} is not in {aspect_list}')
+                aspect = None
+            else:
+                aspect = aspect_default
+        return aspect
 
+
+    def _get_topic_representation(self, topic, df_topic_info, aspect=None):
         data = df_topic_info.loc[df_topic_info.Topic==topic].iloc[0][aspect]
         self.aspect = aspect # save for next use
 
@@ -1048,13 +1060,14 @@ class multi_topics_stats():
 
 
     def visualize_class_by_topic(self, topic, df_topic_info=None,
-                                 col_class='hotel',
                                  fsize=(600,400), ylabel='share of reviews',
                                  title_length=60, barmode='stack',
                                  sentiment_order = ['positive', 'neutral', 'negative'],
                                  sentiment_color = [color_qual.Plotly[x] for x in [0,9,1]],
                                  class_order_ascending = None,
-                                 aspect=None):
+                                 aspect=None,
+                                 title_font_size=14,
+                                 class_label_length=0):
         """
         barmode: 'stack', 'group', 'overlay', 'relative'
         class_order_ascending: None, True, False
@@ -1070,8 +1083,12 @@ class multi_topics_stats():
             print('ERROR: Run create_multi_topics_stats first')
             return None
 
-        aspect = self._check_var(aspect, self.aspect)
-        
+        aspect = self._check_aspect(df_topic_info, aspect)
+        if aspect is None:
+            return None
+
+        col_class = self.col_class
+
         class_order_ascending = self._check_var(class_order_ascending, self.class_order_ascending)
         self.class_order_ascending = class_order_ascending # save for next use
 
@@ -1097,7 +1114,7 @@ class multi_topics_stats():
                                   topic_stats_df.diff_significance_total))
             kw_up_traces = {'marker_color': diff_colors, 'marker_line_color': diff_colors,
                             'marker_line_width': 1.5, 'opacity': 0.9}
-            
+
         # set bar colors
         sentiment_color = dict(zip(sentiment_order, sentiment_color))
         category_orders = {'sentiment': sentiment_order}
@@ -1108,8 +1125,13 @@ class multi_topics_stats():
             class_order = sorted(class_order, reverse=(not class_order_ascending))
             category_orders.update({col_class: class_order})
 
-        fig = px.bar(topic_stats_df.reset_index(),
-                     x = col_class, 
+        df_plot = topic_stats_df.reset_index()
+        # split wine name for plot labels
+        if class_label_length > 0:
+            df_plot[col_class] = df_plot[col_class].apply(lambda x: split_str(x, length=class_label_length, split='<br>'))
+
+        fig = px.bar(df_plot,
+                     x = col_class,
                      y = f'topic_{col_class}_share',
                      title = title,
                      color = color,
@@ -1121,7 +1143,10 @@ class multi_topics_stats():
                      hover_data=['topic_id'],
                      width=fsize[0], height=fsize[1])
 
-        fig.update_layout(showlegend = showlegend)
+        fig.update_layout(showlegend=showlegend,
+                          title_font_size=title_font_size,
+                          xaxis={'automargin': True} # still wine name overlapping
+                          )
         fig.update_traces(**kw_up_traces)
 
         #return (topic_stats_df, df_plot, col_class) # testing
@@ -1134,7 +1159,7 @@ class multi_topics_stats():
                                    /(df[f'total_{col_class}_docs'] + df[f'other_{col_class}s_docs']))
         if self.sentiment:
             topic_total_share = topic_total_share.sum()
-        
+
         fig.add_hline(y=topic_total_share,
                     line_dash="dot",
                     line_width=2,
