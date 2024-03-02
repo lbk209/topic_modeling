@@ -834,6 +834,9 @@ class multi_topics_stats():
 
 
     def get_multi_topics_list(self, topic_distr, threshold):
+        """
+        get the list of multi topics (topics of subsentences) for each document
+        """
         multi_topics_list = list(map(
             lambda doc_topic_distr: list(map(
                 lambda y: y[0], filter(lambda x: x[1] > threshold,
