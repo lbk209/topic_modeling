@@ -1234,9 +1234,10 @@ class multi_topics_stats():
         return topic_stats_df
 
 class multi_topics_sentiment():
-    def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None):
+    def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None, max_sequence_length=2000):
         self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
         self.sentiment_analysis = sentiment_analysis
+        self.max_sequence_length = max_sequence_length
 
         self.tokenizer = tokenizer
         if self.tokenizer is None:
@@ -1341,24 +1342,7 @@ class multi_topics_sentiment():
         #return subsentences
         return {self.topic_labels[k]: v for k, v in subsentences.items()}
 
-
-    def topic_sentiment_back(self, topic_subsentences, sentiment_analysis):
-        senti = {}
-        for topic, subs in topic_subsentences.items():
-            res = sentiment_analysis(subs,
-                                    # return max score only
-                                    return_all_scores=False)
-            scores = []
-            for x in res:
-                #s = x['score']
-                #if x['label'] == 'NEGATIVE':
-                #    s = -s
-                s = f'({x["label"]}) {x["score"]:.3f}'
-                scores.append(s)
-            senti[topic] = scores
-        return senti
-
-
+    
     def topic_sentiment(self, topic_subsentences, sentiment_analysis,
                         label_only=False, min_score=0,
                         max_sequence_length=2000):
@@ -1403,7 +1387,8 @@ class multi_topics_sentiment():
                             #print_result=False,
                             topic_id = True,
                             label_only=False,
-                            min_score=50
+                            min_score=50,
+                            max_sequence_length=None
                             ):
         """
         return two dict, 1st one is topic to subsentences,
@@ -1415,6 +1400,7 @@ class multi_topics_sentiment():
             return None
 
         sentiment_analysis = self._check_var(sentiment_analysis, self.sentiment_analysis)
+        max_sequence_length self._check_var(max_sequence_length, self.max_sequence_length)
         if sentiment_analysis is None:
             print('ERROR: No sentiment_analysis assigned.')
             return None
@@ -1434,7 +1420,8 @@ class multi_topics_sentiment():
 
         # ex) senti = {0 : [positive], 5: [negative]} if single_subsentence and label_only are True
         senti = self.topic_sentiment(subs, sentiment_analysis,
-                                     label_only=label_only, min_score=min_score)
+                                     label_only=label_only, min_score=min_score,
+                                     max_sequence_length=max_sequence_length)
 
         if topic_id:
             subs = {tids[i]: v for i, v in enumerate(subs.values())}
