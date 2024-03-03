@@ -1,5 +1,5 @@
 import collections
-import os
+import os, re
 import pandas as pd
 import numpy as np
 import tqdm
@@ -846,8 +846,26 @@ class multi_topics_stats():
         return multi_topics_list
 
 
+    def _get_docs_sentiments(self, docs, multi_topics_list, 
+                             topic_distr, topic_token_distr,
+                             sentiment_func):
+        # return list of lists of sentiment labels for topics in multi_topics_list
+        # ex) [[positive], [positive, negative], ...]
+        # sentiment_func: get a doc and return a list of sentiment labels for topics of subsentence in the doc
+        subs_senti = list()
+        for i, doc in tqdm.tqdm(enumerate(docs), desc='Sentiment analysis', total=len(docs)):
+            tids = multi_topics_list[i]
+
+            if len(tids) == 0:
+                senti = tids
+            else:
+                senti = sentiment_func(doc, topic_distr[i], topic_token_distr[i], tids=tids)
+            subs_senti.append(senti)
+        return subs_senti
+
+
     def get_multi_topics_df(self, df_data, topic_distr, threshold, cols_add,
-                            sentiment=None, sentiment_func=None):
+                            sentiment=None, sentiment_func=None, docs=None):
         """
         get df of topic, docu id and class.
         count of id is num of all subsentences, which is greater than num of docs(nunique of id).
@@ -855,9 +873,6 @@ class multi_topics_stats():
         df_data: dataframe of topic, document id, document class
         cols_add: list of columns for multi_topics_df
         sentiment: None, True, False. None to use self.sentiment
-        sentiment_func: sentiment analysis function
-         getting list of list of subsentences of each doc and
-         returning list of sentiment labels for subsentences
         """
         # define topics with probability > threshold for each document
         # This approach will help us to reduce the number of outliers
@@ -867,10 +882,12 @@ class multi_topics_stats():
         # testing: assuming procedure to calc sentiments of multi topics
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment:
-            if sentiment_func is None:
-                print('WARNING!: working without sentiment as no sentiment_analysis assigned.')
+            if (sentiment_func is None) or (docs is None):
+                print('WARNING!: working without sentiment as missing inputs (sentiment_func or docs).')
             else:
-                df_data['sentiment'] = sentiment_func(multi_topics_list)
+                df_data['sentiment'] = self._get_docs_sentiments(docs, multi_topics_list, 
+                                                                 topic_distr, self.topic_token_distr, 
+                                                                 sentiment_func)
 
         # create multi_topics_df which shows many documents have multiple topics
         tmp_data = []
@@ -905,11 +922,13 @@ class multi_topics_stats():
                                   df_data = None,
                                   sentiment=None,
                                   sentiment_func=None,
+                                  docs=None,
                                   alpha=0.05,
                                   warning_ztest_r=0.2
                                   ):
         """
         df_data.columns: 'id', f'{col_class}', f'{col_doc}'
+        sentiment_funct: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
         df_data = self._check_var(df_data, self.df_data)
         if df_data is None:
@@ -924,7 +943,7 @@ class multi_topics_stats():
 
         # self.sentiment being updated in get_multi_topics_df
         multi_topics_df = self.get_multi_topics_df(df_data, topic_distr, threshold, [col_class],
-                                                   sentiment=sentiment, sentiment_func=sentiment_func)
+                                                   sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
 
         # testing
         #return (sentiment, multi_topics_df, col_class)
@@ -1213,3 +1232,212 @@ class multi_topics_stats():
 
         fig.show()
         return topic_stats_df
+
+class multi_topics_sentiment():
+    def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None):
+        self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
+        self.sentiment_analysis = sentiment_analysis
+
+        self.tokenizer = tokenizer
+        if self.tokenizer is None:
+            self.tokenizer = topic_model.vectorizer_model.build_tokenizer()
+
+        self.tm_visualize_distribution = topic_model.visualize_distribution
+
+    def _check_var(self, var_arg, var_self):
+        if var_arg is None:
+            var_arg = var_self
+        return var_arg
+
+    def visualize_distribution(self,
+                               topic_distr_doc,
+                               min_probability=0.015,
+                               plot=True,
+                               pattern = r'<b>\s*Topic\s*(\d+)</b>',
+                               **kwargs):
+        """
+        get the topics of a document from the distribution of topic probabilities
+        """
+        probs = self.tm_visualize_distribution(topic_distr_doc, min_probability=min_probability, **kwargs)
+        if plot:
+            probs.show()
+
+        tid_list = []
+        for s in probs.data[0]['y']:
+            # Search for the pattern
+            match = re.search(pattern, s, re.IGNORECASE)
+            tid_list.append(int(match.group(1)))
+
+        return tid_list
+
+
+    def get_token_distribution(self, doc, topic_token_distr_doc, tokenizer, normalize=False,
+                               index_label=False):
+        """
+        tokenizer: CountVectorizer.build_tokenizer(). check BERTopic.vectorizer_model for the vectorizer
+        topic_token_distr_doc: the doc's topic_token_distribution
+        """
+        # Tokenize document
+        tokens = tokenizer(doc)
+
+        if len(tokens) == 0:
+            raise ValueError("Make sure that your document contains at least 1 token.")
+
+        # Prepare dataframe with results
+        if normalize:
+            df = pd.DataFrame(topic_token_distr_doc / topic_token_distr_doc.sum()).T
+        else:
+            df = pd.DataFrame(topic_token_distr_doc).T
+
+        df.columns = [f"{token}_{i}" for i, token in enumerate(tokens)]
+        df.columns = [f"{token}{' '*i}" for i, token in enumerate(tokens)]
+        if index_label: # index is topic label
+            df.index = list(self.topic_labels.values())
+        else: # index is topic id
+            df.index = list(self.topic_labels.keys())
+        # drop topics of no distribution for any token in the doc
+        df = df.loc[(df.sum(axis=1) != 0), :]
+
+        # dataframe indicating the best fitting topics for each token
+        return df
+
+
+    def get_subsentences(self, df_token_distr, tids=None, min_token_proba=0, n_padding=0):
+        """
+        extract subsentences (sets of tokens) related to each topic from a document
+        return dict of topic (id with set of words) to list of subsentences
+        df_token_distr: token-level distributions of a document. index must be topic id
+        n_padding: number of extra token to add to a subsentence to give a context for sentiment analysis
+        """
+        if tids is None:
+            dict_token_distr = df_token_distr.to_dict('index')
+        else:
+            dict_token_distr = {k: v for k, v in df_token_distr.to_dict('index').items() if k in tids}
+
+        if len(dict_token_distr) == 0:
+            print('ERROR: no topic to get its subsentences')
+            return None
+
+        subsentences = {} # topic to subsentences
+        for topic, dist_dict in dict_token_distr.items():
+            blocks = [] # subsentences for each topic
+            block = [] # temp list for a subsentence building
+
+            token_all = list(dist_dict.keys())
+            for i, (token, dist) in enumerate(dist_dict.items()):
+                if dist > min_token_proba:
+                    if (i * n_padding > 0) and (len(block) == 0):
+                        start = max(i-n_padding, 0)
+                        block = [x.strip() for x in token_all[start:i]]
+                    block.append(token.strip())
+                else:
+                    if len(block) > 0:
+                        if n_padding > 0:
+                            block.extend([x.strip() for x in token_all[i:i+n_padding]])
+                        blocks.append(' '.join(block))
+                    block = []
+
+            subsentences[topic] = blocks
+        #return subsentences
+        return {self.topic_labels[k]: v for k, v in subsentences.items()}
+
+
+    def topic_sentiment_back(self, topic_subsentences, sentiment_analysis):
+        senti = {}
+        for topic, subs in topic_subsentences.items():
+            res = sentiment_analysis(subs,
+                                    # return max score only
+                                    return_all_scores=False)
+            scores = []
+            for x in res:
+                #s = x['score']
+                #if x['label'] == 'NEGATIVE':
+                #    s = -s
+                s = f'({x["label"]}) {x["score"]:.3f}'
+                scores.append(s)
+            senti[topic] = scores
+        return senti
+
+
+    def topic_sentiment(self, topic_subsentences, sentiment_analysis,
+                        label_only=False, min_score=0,
+                        max_sequence_length=2000):
+        senti = {}
+        for topic, subs in topic_subsentences.items():
+            res = sentiment_analysis([x[:max_sequence_length] for x in subs],
+                                     # return max score only
+                                     return_all_scores=False)
+            scores = []
+            for x in res:
+                label = x["label"]
+                score = x["score"]
+                if score <= min_score:
+                    label = 'n/a'
+
+                if label_only:
+                    s = label
+                else:
+                    s = f'({label}) {score:.3f}'
+                scores.append(s)
+            senti[topic] = scores
+            
+        return senti
+
+
+    def get_topic_score(self, tid, doc_subs, doc_senti):
+        try:
+            t_list = list(doc_subs.keys())
+            tp = t_list[tid]
+            return dict(zip(doc_subs[tp], doc_senti[tp]))
+        except Exception as e:
+            print(f'ERROR: {e}')
+            return
+
+
+    def get_docu_sentiments(self, doc, topic_distr_doc, topic_token_distr_doc,
+                            tokenizer=None, sentiment_analysis=None,
+                            tids=None, min_proba = 0.015, pattern = r'<b>\s*Topic\s*(\d+)</b>',
+                            min_token_proba = 0,
+                            single_subsentence=True,
+                            n_padding = 0,
+                            #print_result=False,
+                            topic_id = True,
+                            label_only=False,
+                            min_score=50
+                            ):
+        """
+        return two dict, 1st one is topic to subsentences,
+         the other is topic to sentiments of the subsentences
+        """
+        tokenizer = self._check_var(tokenizer, self.tokenizer)
+        if tokenizer is None:
+            print('ERROR: No tokenizer assigned.')
+            return None
+
+        sentiment_analysis = self._check_var(sentiment_analysis, self.sentiment_analysis)
+        if sentiment_analysis is None:
+            print('ERROR: No sentiment_analysis assigned.')
+            return None
+
+        if tids is None:
+            tids = self.visualize_distribution(topic_distr_doc,
+                                               min_probability=min_proba,
+                                               pattern=pattern,
+                                               plot=False)
+
+        df_token_distr = self.get_token_distribution(doc, topic_token_distr_doc, tokenizer)
+        subs = self.get_subsentences(df_token_distr, tids=tids, min_token_proba=min_token_proba, n_padding=n_padding)
+
+        # concat all subsentences for each topic
+        if single_subsentence:
+            subs = {k: ['. '.join(v)] for k,v in subs.items()}
+
+        # ex) senti = {0 : [positive], 5: [negative]} if single_subsentence and label_only are True
+        senti = self.topic_sentiment(subs, sentiment_analysis,
+                                     label_only=label_only, min_score=min_score)
+
+        if topic_id:
+            subs = {tids[i]: v for i, v in enumerate(subs.values())}
+            senti = {tids[i]: v for i, v in enumerate(senti.values())}
+
+        return (subs, senti)
