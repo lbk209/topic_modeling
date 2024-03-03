@@ -1400,7 +1400,7 @@ class multi_topics_sentiment():
             return None
 
         sentiment_analysis = self._check_var(sentiment_analysis, self.sentiment_analysis)
-        max_sequence_length self._check_var(max_sequence_length, self.max_sequence_length)
+        max_sequence_length = self._check_var(max_sequence_length, self.max_sequence_length)
         if sentiment_analysis is None:
             print('ERROR: No sentiment_analysis assigned.')
             return None
