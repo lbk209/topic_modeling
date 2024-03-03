@@ -855,7 +855,9 @@ class multi_topics_stats():
         df_data: dataframe of topic, document id, document class
         cols_add: list of columns for multi_topics_df
         sentiment: None, True, False. None to use self.sentiment
-        sentiment_func: sentiment analysis function getting list of sentences and returning list of sentiment
+        sentiment_func: sentiment analysis function
+         getting list of list of subsentences of each doc and
+         returning list of sentiment labels for subsentences
         """
         # define topics with probability > threshold for each document
         # This approach will help us to reduce the number of outliers
@@ -868,7 +870,7 @@ class multi_topics_stats():
             if sentiment_func is None:
                 print('WARNING!: working without sentiment as no sentiment_analysis assigned.')
             else:
-                df_data['sentiment'] = [sentiment_func(x) for x in multi_topics_list]
+                df_data['sentiment'] = sentiment_func(multi_topics_list)
 
         # create multi_topics_df which shows many documents have multiple topics
         tmp_data = []
@@ -916,6 +918,10 @@ class multi_topics_stats():
 
         topic_distr = self.topic_distr
         col_class = self.col_class
+
+        # testing
+        #return (df_data, topic_distr, threshold, col_class, sentiment, sentiment_func)
+
         # self.sentiment being updated in get_multi_topics_df
         multi_topics_df = self.get_multi_topics_df(df_data, topic_distr, threshold, [col_class],
                                                    sentiment=sentiment, sentiment_func=sentiment_func)
@@ -1037,13 +1043,14 @@ class multi_topics_stats():
     def _check_aspect(self, df_topic_info, aspect, aspect_default='Representation'):
         aspect = self._check_var(aspect, self.aspect)
         # exclude 1st 3 cols Topic, Count and Name. CustomName could be included which is not list
-        aspect_list = list(df_topic_info.columns)[3:] 
+        aspect_list = list(df_topic_info.columns)[3:]
         if aspect not in aspect_list:
             print(f'WARNING: aspect {aspect} is not in {aspect_list}')
             if aspect_default not in aspect_list:
                 print(f'ERROR: even default aspect {aspect_default} is not in {aspect_list}')
                 aspect = None
             else:
+                print(f'Default aspect {aspect_default} is used instead')
                 aspect = aspect_default
         return aspect
 
