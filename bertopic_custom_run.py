@@ -4,7 +4,7 @@ from bertopic.representation import KeyBERTInspired
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 
-from bertopic_custom_util import utils
+#from bertopic_custom_util import utils
 
 
 def bertopic_batch(docs,
@@ -81,11 +81,11 @@ def bertopic_batch(docs,
         if custom_label == 'keybert':
             tm_post = utils(topic_model)
             tm_post.set_custom_labels(name='KeyBERT')
-            
+
     except Exception as e:
         print('ERROR!:', e)
         tm_post = None
-        
+
     if (tm_post is not None) and reduced_embeddings:
         k = ['n_neighbors', 'min_dist','random_state']
         v = [n_neighbors, min_dist, random_state]
@@ -94,6 +94,3 @@ def bertopic_batch(docs,
         tm_post.reduced_embeddings = reduced_embeddings
 
     return tm_post
-
-
-
