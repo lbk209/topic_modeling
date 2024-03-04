@@ -107,10 +107,11 @@ class utils():
         return df
 
 
-    def get_topic_labels(self, list_tid=None, aspect=None, min_count=0, length=120):
+    def get_topic_labels(self, list_tid=None, aspect=None, min_count=0, length=120, sort_by_input=True, print_labels=True):
         """
         list_tid: list of topics
         length: number of chars to print every line
+        sort_by_input: sort dict by the order of topic in list_tid
         dict_label: dict of topic and custom label
         """
         aspect = self._check_aspect(aspect)
@@ -120,11 +121,19 @@ class utils():
         df = self.topic_model.get_topic_info()
         cond = (df.Count > min_count)
         if list_tid is not None:
+            if not isinstance(list_tid, list):
+                list_tid = [list_tid]
             cond = cond & (df.Topic.isin(list_tid))
 
-        dict_label = df.loc[cond, aspect].to_dict()
+        df = df.loc[cond]
+        if sort_by_input and (list_tid is not None):
+            df = df.sort_values(by='Topic', key=lambda x: x.map({v: i for i, v in enumerate(list_tid)}))
+
+        dict_label = df.set_index('Topic')[aspect].to_dict()
         dict_label = {k: ', '.join(v) if isinstance(v, (list, tuple)) else v for k, v in dict_label.items()}
-        _ = [print_with_line_feed(f'{k}: {v}', length) for k,v in dict_label.items()]
+    
+        if print_labels:
+            _ = [print_with_line_feed(f'{k}: {v}', length) for k,v in dict_label.items()]
 
         return dict_label
 
@@ -148,6 +157,24 @@ class utils():
                 break
 
         return rep_docs
+
+
+    def get_topic_docs(self, docs=None, tids=None, label=None):
+        docs = self._check_var(docs, self.docs)
+        if docs is None:
+            print('ERROR!: missing docs')
+            return None
+
+        df = pd.DataFrame({'doc': docs, 'topic':self.topic_model.topics_})
+        topic_to_label = self.get_topic_labels(aspect=label, print_labels=False)
+        df['topic_label'] = df.topic.apply(lambda x: topic_to_label[x])
+        
+        if tids is not None:
+            if not isinstance(tids, list):
+                tids = [tids]
+            df = df.loc[df.topic.isin(tids)]
+
+        return df
 
 
     def merge_topics(self, topics_to_merge, docs=None, name='KeyBERT'):
@@ -295,6 +322,16 @@ class utils():
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
         df_topic_info = topic_model.get_topic_info()
         return multi_topics_stats(*args_distr, df_data=df_data, df_topic_info=df_topic_info, col_class=col_class)
+
+
+    def multi_topics_sentiment(self, sentiment_analysis,
+                               max_sequence_length=2400):
+        """
+        create a instance of multi_topics_sentiment class
+        """
+        return multi_topics_sentiment(topic_model=self.topic_model,
+                                      sentiment_analysis=sentiment_analysis,
+                                      max_sequence_length=max_sequence_length)
 
 
 class visualize():
@@ -762,8 +799,8 @@ class multi_topics_stats():
         self.multi_topics_stats_df = None
         self.df_data = df_data
         self.df_topic_info = df_topic_info # BERTopic.get_topic_info()
-        self.sentiment = False,
-        self.aspect = None,
+        self.sentiment = False
+        self.aspect = None
         self.col_class = col_class
         self.class_order_ascending = None
 
@@ -921,30 +958,41 @@ class multi_topics_stats():
         return subs_senti
 
 
-    def get_multi_topics_df(self, df_data, topic_distr, threshold, cols_add,
+    def get_multi_topics_df(self, threshold=0, df_data=None, cols_add=None,
                             sentiment=None, sentiment_func=None, docs=None):
         """
         get df of topic, docu id and class.
-        count of id is num of all subsentences, which is greater than num of docs(nunique of id).
-
+         count of id is num of all subsentences, which is greater than num of docs(nunique of id).
         df_data: dataframe of docs including document id and cols_add (such as document class)
-        cols_add: list of columns for multi_topics_df
+        cols_add: list of columns of df_data for multi_topics_df
         sentiment: None, True, False. None to use self.sentiment
+        sentiment_func: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
+        df_data = self._check_var(df_data, self.df_data)
+        if df_data is None:
+            print('ERROR: No df_data assigned')
+            return None
+
+        if cols_add is None:
+            cols_add = [self.col_class]
+
+        topic_distr = self.topic_distr
+
         # define topics with probability > threshold for each document
         # This approach will help us to reduce the number of outliers
         multi_topics_list = self.get_multi_topics_list(topic_distr, threshold)
         df_data['multiple_topics'] = multi_topics_list
 
-        # testing: assuming procedure to calc sentiments of multi topics
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment:
             if (sentiment_func is None) or (docs is None):
                 print('WARNING!: working without sentiment as missing inputs (sentiment_func or docs).')
+                sentiment = False
             else:
                 df_data['sentiment'] = self._get_docs_sentiments(docs, multi_topics_list,
                                                                  topic_distr, self.topic_token_distr,
                                                                  sentiment_func)
+                self.sentiment = sentiment
 
         # create multi_topics_df which shows many documents have multiple topics
         tmp_data = []
@@ -969,41 +1017,58 @@ class multi_topics_stats():
                     kw.update({'sentiment': topic_sentiments[i]})
                 tmp_data.append(kw)
 
-        self.sentiment = sentiment
-
-        multi_topics_df = pd.DataFrame(tmp_data)
-        return multi_topics_df
+        self.multi_topics_df = pd.DataFrame(tmp_data)
+        return self.multi_topics_df
 
 
-    def create_multi_topics_stats(self, threshold,
-                                  df_data = None,
-                                  sentiment=None,
-                                  sentiment_func=None,
-                                  docs=None,
-                                  alpha=0.05,
-                                  warning_ztest_r=0.2
-                                  ):
+    def get_multi_topics_info(self, df_topic_info=None, aspect=None):
         """
-        df_data.columns: dataframe of docs including id, class, and more such as its content
-        sentiment_funct: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
+        Get information about each topic including its ID, frequency, share, and name from multi_topics_df.
+        share is based on num of subsentences, not on num of docs
         """
-        df_data = self._check_var(df_data, self.df_data)
-        if df_data is None:
-            print('ERROR: No df_data assigned')
+        df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
+        if df_topic_info is None:
+            print('ERROR: No df_topic_info assigned')
             return None
 
-        topic_distr = self.topic_distr
-        col_class = self.col_class
+        multi_topics_df = self.multi_topics_df
+        if multi_topics_df is None:
+            print('ERROR: Run get_multi_topics_df first')
+            return None
 
-        # testing
-        #return (df_data, topic_distr, threshold, col_class, sentiment, sentiment_func)
+        aspect = self._check_aspect(df_topic_info, aspect)
+        if aspect is None:
+            return None
 
-        # self.sentiment being updated in get_multi_topics_df
-        multi_topics_df = self.get_multi_topics_df(df_data, topic_distr, threshold, [col_class],
-                                                   sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
+        top_multi_topics_df = multi_topics_df.groupby('topic', as_index = False).id.nunique()
+        # share is ratio of topic to all subsentences (not to num of documents)
+        top_multi_topics_df['share_to_docs'] = 100.*top_multi_topics_df.id/top_multi_topics_df.id.sum()
+        top_multi_topics_df['topic_repr'] = top_multi_topics_df.topic.map(
+            lambda x: self._get_topic_representation(x, df_topic_info, aspect=aspect)
+        )
 
-        # testing
-        #return (sentiment, multi_topics_df, col_class)
+        return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
+
+
+    def create_multi_topics_stats(self, sentiment=None, alpha=0.05, warning_ztest_r=0.2):
+        """
+        create stats from self.multi_topics_df
+        """
+        multi_topics_df = self.multi_topics_df
+        if multi_topics_df is None:
+            print('ERROR: Run get_multi_topics_df first')
+            return None
+
+        sentiment = self._check_var(sentiment, self.sentiment)
+        if sentiment is not None:
+            # update for visualize_class_by_topic
+            self.sentiment = sentiment
+
+        if sentiment:
+            if 'sentiment' not in multi_topics_df.columns:
+                print('ERROR: run get_multi_topics_df with sentiment option first.')
+                self.sentiment = False
+                return None
 
         # create multi_topics_stats_df
         tmp_data = []
@@ -1077,7 +1142,6 @@ class multi_topics_stats():
         print('stats for visualize_class_by_topic created.')
 
         #return multi_topics_stats_df
-        self.multi_topics_df = multi_topics_df
         self.multi_topics_stats_df = multi_topics_stats_df
 
 
@@ -1085,35 +1149,6 @@ class multi_topics_stats():
         if var_arg is None:
             var_arg = var_self
         return var_arg
-
-
-    def get_multi_topics_info(self, df_topic_info=None, aspect=None):
-        """
-        Get information about each topic including its ID, frequency, share, and name from multi_topics_df.
-        share is based on num of subsentences, not on num of docs
-        """
-        df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
-        if df_topic_info is None:
-            print('ERROR: No df_topic_info assigned')
-            return None
-
-        multi_topics_df = self.multi_topics_df
-        if multi_topics_df is None:
-            print('ERROR: Run create_multi_topics_stats or get_multi_topics_df first')
-            return None
-
-        aspect = self._check_aspect(df_topic_info, aspect)
-        if aspect is None:
-            return None
-
-        top_multi_topics_df = multi_topics_df.groupby('topic', as_index = False).id.nunique()
-        # share is ratio of topic to all subsentences (not to num of documents)
-        top_multi_topics_df['share_to_docs'] = 100.*top_multi_topics_df.id/top_multi_topics_df.id.sum()
-        top_multi_topics_df['topic_repr'] = top_multi_topics_df.topic.map(
-            lambda x: self._get_topic_representation(x, df_topic_info, aspect=aspect)
-        )
-
-        return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
     def _check_aspect(self, df_topic_info, aspect=None, aspect_default='Representation'):
