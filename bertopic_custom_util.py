@@ -23,7 +23,7 @@ def read_csv(file, path_data, **kwargs):
     kwargs: keyword args for pd.read_csv
     """
     files = [x for x in os.listdir(path_data) if x.startswith(file)]
-    
+
     if len(files) == 0:
         print('ERROR!: No csv to read')
 
@@ -55,6 +55,24 @@ def print_with_line_feed(input_string, line_length=50):
     print(ws)
 
 
+def check_topic_aspect(df_topic_info, aspect, aspect_default='Representation', start_idx=3, warning=True):
+    """
+    df_topic_info: BERTopic.get_topic_info()
+    """
+    # exclude 1st 3 cols Topic, Count and Name. CustomName could be included which is not list
+    aspect_list = list(df_topic_info.columns)[start_idx:]
+    if aspect not in aspect_list:
+        if warning:
+            print(f'WARNING: aspect {aspect} is not in {aspect_list}')
+        if aspect_default not in aspect_list:
+            print(f'ERROR: even default aspect {aspect_default} is not in {aspect_list}')
+            aspect = None
+        else:
+            print(f'Default aspect {aspect_default} is used.')
+            aspect = aspect_default
+    return aspect
+
+
 class utils():
     def __init__(self, topic_model, reduced_embeddings=None, docs=None):
         self.topic_model = topic_model
@@ -62,7 +80,14 @@ class utils():
         self.reduced_embeddings = reduced_embeddings
         self.docs = docs
         self.count_visualize = 0
-        
+
+
+    def _check_var(self, var_arg, var_self):
+        if var_arg is None:
+            var_arg = var_self
+        return var_arg
+
+
     def print_topic_info(self):
         """
         print number of topics and percentage of outliers
@@ -78,30 +103,36 @@ class utils():
         else:
             a = 0
         print(f'outliers: {a:.3f}')
-        
+
         return df
 
 
-    def print_custom_labels(self, list_tid=None, min_count=0, length=120):
+    def get_topic_labels(self, list_tid=None, aspect=None, min_count=0, length=120):
         """
-        list_tid: topics to print custom labels
+        list_tid: list of topics
         length: number of chars to print every line
         dict_label: dict of topic and custom label
         """
-        tid_all = self.topic_model.topic_labels_.keys()
-        dict_label = dict(zip(tid_all, self.topic_model.custom_labels_))
-        
-        if list_tid is None:
-            df = self.topic_model.get_topic_info()
-            list_tid = df.loc[(df.Topic>-1) & (df.Count>=min_count)].Topic.to_list()
-        else:        
-            if not isinstance(list_tid, list):
-                list_tid = [list_tid]
-        
-        dict_label = {k:v for k,v in dict_label.items() if k in list_tid}
-        _ = [print_with_line_feed(v, length) for k,v in dict_label.items()]
+        aspect = self._check_aspect(aspect)
+        if aspect is None:
+            return None
+
+        df = self.topic_model.get_topic_info()
+        cond = (df.Count > min_count)
+        if list_tid is not None:
+            cond = cond & (df.Topic.isin(list_tid))
+
+        dict_label = df.loc[cond, aspect].to_dict()
+        dict_label = {k: ', '.join(v) if isinstance(v, (list, tuple)) else v for k, v in dict_label.items()}
+        _ = [print_with_line_feed(f'{k}: {v}', length) for k,v in dict_label.items()]
 
         return dict_label
+
+
+    def _check_aspect(self, aspect=None, aspect_default='Representation'):
+        df_topic_info = self.topic_model.get_topic_info()
+        return check_topic_aspect(df_topic_info, aspect, aspect_default=aspect_default,
+                                  start_idx=3, warning=False)
 
 
     def get_representative_docs(self, list_tid=None, length=120, max_topics=5):
@@ -120,17 +151,17 @@ class utils():
 
 
     def merge_topics(self, topics_to_merge, docs=None, name='KeyBERT'):
+
+        docs = self._check_var(docs, self.docs)
         if docs is None:
-            if self.docs is None:
-                print('ERROR!: docs required to merge topics')
-                return None
-            else:
-                docs = self.docs
+            print('ERROR!: docs required to merge topics')
+            return None
+
         self.topic_model.merge_topics(docs, topics_to_merge)
         # update custom labels
         self.set_custom_labels(name=name)
 
-    
+
     def get_topics(self, index, num_topics=None, cols = ['Topic', 'KeyBERT']):
         """
         get a row from df, the result of bertopic_batch
@@ -142,8 +173,8 @@ class utils():
         # get the position of topic 0 which might be 0 if no outlier
         i = df.loc[df.Topic==0].index[0]
         return df.iloc[i:num_topics+i].loc[:, cols].rename(columns=dict(zip(cols, ['index', index]))).set_index('index').transpose()
-        
-        
+
+
     def set_custom_labels(self, name='KeyBERT'):
         #length = 40
         #end = ' ...'
@@ -154,16 +185,16 @@ class utils():
         #labels = {k: v[:length] + end for k,v in labels.items()}
         #labels = {k: '\n'.join([v[i:i+40] for i in range(0, len(v), 40)]) for k,v in labels.items()}
         self.topic_model.set_topic_labels(labels)
-        
+
         if self.count_visualize > 0:
             print('WARNING: create the instance of visualize again.')
         #return topic_model
-        
-        
+
+
     def check_similarity(self, custom_labels=False,
                          embedding_model=None, min_distance=0.8,
                          pytorch_cos_sim=None):
-        
+
         """
         pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim
         """
@@ -208,7 +239,7 @@ class utils():
                                              .apply(lambda x: pytorch_cos_sim(encode(x.topic1), encode(x.topic2))[0][0].item(), axis=1)
                                              .rename('c/label sim')
                                              , how='right')
-        return pair_dist_df    
+        return pair_dist_df
 
 
     def calc_score(self, aspect='KeyBERT', tid=None):
@@ -217,7 +248,7 @@ class utils():
         and calc mean, median and std for each topic
         """
         topic_model = self.topic_model
-        
+
         if aspect not in topic_model.topic_aspects_.keys():
             print('ERROR')
 
@@ -237,15 +268,33 @@ class utils():
             list_std.append(np.std(s))
 
         return (list_mean, list_median, list_std)
-        
-        
+
+
     def visualize(self, docs=None, classes=None):
+        """
+        create a instance of visualize class
+        """
         self.count_visualize += 1
         if docs is None:
             docs = self.docs
         # return a instance of the class visualize
-        return visualize(self.topic_model, docs=docs, classes=classes, 
+        return visualize(self.topic_model, docs=docs, classes=classes,
                          reduced_embeddings=self.reduced_embeddings)
+
+
+    def multi_topics_stats(self, docs=None, df_data=None, col_class=None):
+        """
+        create a instance of multi_topics_stats class
+        """
+        docs = self._check_var(docs, self.docs)
+        if docs is None:
+            print('ERROR!: docs required for approximate_distribution')
+            return
+        topic_model = self.topic_model
+
+        args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
+        df_topic_info = topic_model.get_topic_info()
+        return multi_topics_stats(*args_distr, df_data=df_data, df_topic_info=df_topic_info, col_class=col_class)
 
 
 class visualize():
@@ -256,7 +305,7 @@ class visualize():
         self.reduced_embeddings = reduced_embeddings
         self.custom_labels = custom_labels
         self.hierarchical_topics = None
-        
+
     def _check_flag_cl(self, custom_labels):
         if custom_labels is None:
             custom_labels = self.custom_labels
@@ -267,7 +316,7 @@ class visualize():
             var_arg = var_self
         return var_arg
 
-    
+
     def documents(self, docs=None, list_tid=None, custom_labels=None,
                             hide_annotations=True, hide_document_hover=False, **kwargs):
         """
@@ -279,10 +328,10 @@ class visualize():
             return None
         else:
             docs = [x[:100] for x in docs]
-            
+
         if list_tid is None:
             list_tid = range(20)
-            
+
         custom_labels = self._check_flag_cl(custom_labels)
 
         return self.topic_model.visualize_documents(docs, topics=list_tid, custom_labels=custom_labels,
@@ -295,10 +344,10 @@ class visualize():
         if docs is None:
             print('ERROR!: No docs assigned')
             return None
-            
+
         # Extract hierarchical topics and their representations
         self.hierarchical_topics = self.topic_model.hierarchical_topics(docs)
-    
+
         # Visualize these representations
         return self.topic_model.visualize_hierarchy(hierarchical_topics=self.hierarchical_topics, **kwargs)
 
@@ -309,9 +358,9 @@ class visualize():
 
     def topics(self, **kwargs):
         return self.topic_model.visualize_topics(**kwargs)
-                                        
 
-    def topics_per_multiclass(self, 
+
+    def topics_per_multiclass(self,
                          df_class: pd.DataFrame,
                          docs=None,
                          ncols=4, top_n_topics=None,
@@ -320,14 +369,14 @@ class visualize():
                          width = 350, height = 350):
         """
         grid plot of multi-classes (such as a set of param search)
-        df_class: dataframe of classes where columns are class names. 
+        df_class: dataframe of classes where columns are class names.
                   must be the same order of docs.
         """
         docs = self._check_var(docs, self.docs)
         if docs is None:
             print('ERROR!: docs required')
             return None
-            
+
         subplot_titles = [x for x in df_class.columns if not isinstance(x, int)]
         nrows = len(subplot_titles)//ncols+1
 
@@ -500,7 +549,7 @@ class visualize():
 
     def topics_per_class_all(self,
                              # classes required if no classes assigned when creating instance
-                             classes: List[str] = None, 
+                             classes: List[str] = None,
                              group: List[str] = None,
                              docs: List[str] = None,
                              top_n_topics: int = 10,
@@ -514,9 +563,9 @@ class visualize():
         """
         plot both of freq and relative share
         """
-        custom_labels = self._check_flag_cl(custom_labels)                        
+        custom_labels = self._check_flag_cl(custom_labels)
         topic_model = self.topic_model
-                                 
+
         docs = self._check_var(docs, self.docs)
         classes = self._check_var(classes, self.classes)
         if (docs is None) or (classes is None):
@@ -566,15 +615,15 @@ class visualize():
         fig.update_xaxes(showgrid=True)
         fig.update_yaxes(showgrid=True)
         return fig
-    
-    
-    
+
+
+
 class param_study():
     def __init__(self, df_score=None, df_score_stacked=None):
         self.df_score = df_score
         self.df_score_stacked = df_score_stacked
 
-    
+
     def import_topic(self, prefix, path_data='.'):
         df_result = read_csv(prefix, path_data)
 
@@ -596,7 +645,7 @@ class param_study():
         for x in df_score.columns.get_level_values(0).unique()[1:]:
             cols = df_score[x].columns
             df_score = df_score.rename(columns=dict(zip(cols, cols.astype(int))))
-        
+
         if self.check_duplicates(df_score) > 0:
             print('WARNING: drop duplicates first.')
         self.df_score = df_score
@@ -623,7 +672,7 @@ class param_study():
             df_score = self.df_score
             if self.check_non(df_score, 'import a score file first'):
                 return None
-        
+
         df_score.columns.names = [None,'Topic']
         cond = (df_score.columns.get_level_values(0) == 'param')
         cols = df_score.columns[cond].tolist()
@@ -656,17 +705,17 @@ class param_study():
         if 'color' in kwa.keys():
             df = df.astype({kwa['color']: str})
         fig = func_plot(df, width=width, height=height, **kwa2)
-        
+
         fig.update_layout(yaxis=dict(range=yaxis_range))
-        
+
         if marker_size > 0:
             fig.update_traces(marker=dict(size=marker_size),
                             selector=dict(mode='markers'))
         #fig.show()
         return fig
 
-    
-    def _split_param_combinations(self, params, num_plots=5, 
+
+    def _split_param_combinations(self, params, num_plots=5,
                                  kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
                                  kwa_starts = ['Topic', 'mean']):
         """
@@ -680,9 +729,9 @@ class param_study():
 
         #print(f'Fig groups from 0 to {len(list_psets)-1} created.')
         return list_psets
-        
 
-    def visualize_all(self, params, num_plots=5, 
+
+    def visualize_all(self, params, num_plots=5,
                       kw=['x', 'y', 'color', 'facet_col', 'facet_row'],
                       kwa_starts = ['Topic', 'mean'],
                       width=1000, height=600, marker_size=3, yaxis_range=[0,1]):
@@ -690,11 +739,11 @@ class param_study():
         if self.check_non(df_score_stacked, 'No stacked score'):
             return None
         list_psets = self._split_param_combinations(params, num_plots=num_plots, kw=kw, kwa_starts=kwa_starts)
-        
+
         figs = []
         for idx_f, ps in enumerate(list_psets):
             t = lambda i: {'title': f'output_function({idx_f}, [{i}])'}
-            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size, 
+            fs = [self.visualize(p, kw, width=width, height=height, marker_size=marker_size,
                                  kwa_optional=t(idx_c), yaxis_range=yaxis_range) for idx_c, p in enumerate(ps)]
             figs.append(fs)
         #return figs
@@ -721,8 +770,10 @@ class multi_topics_stats():
 
     def visualize_distr_per_threshold(self, max_threshhold=0.15, n_topics=5,
                                       vl_max_share = 0.1, vl_decr=0.01,
-                                      plot=True, width = 800, ylabel='share of reviews',
-                                      colormap = px.colors.sequential.YlGnBu):
+                                      plot=True, width = 600, height=400, ylabel='share of reviews',
+                                      margin_top = 80, margin_bot = 80,
+                                      colormap = px.colors.sequential.YlGnBu,
+                                      ):
         """
         calculate the distribution of selected topics per review for different threshold levels
          and return optimized threshold to minimize the both documents of lowest number and largest number of topics
@@ -773,8 +824,14 @@ class multi_topics_stats():
                 labels = {'num_topics_group': 'number of topics',
                             'value': f'{ylabel}, %'},
                 color_discrete_map = cdm,
-                width = width
+                width = width, height=height
                 )
+            fig.update_layout(
+                #margin=dict(l=20, r=20, t=100, b=20),
+                margin=dict(t=margin_top, b=margin_bot),
+                #paper_bgcolor="LightSteelBlue",
+                )
+
 
             # plot vline of optimized threshold
             if threshold_opt is not None:
@@ -846,7 +903,7 @@ class multi_topics_stats():
         return multi_topics_list
 
 
-    def _get_docs_sentiments(self, docs, multi_topics_list, 
+    def _get_docs_sentiments(self, docs, multi_topics_list,
                              topic_distr, topic_token_distr,
                              sentiment_func):
         # return list of lists of sentiment labels for topics in multi_topics_list
@@ -870,7 +927,7 @@ class multi_topics_stats():
         get df of topic, docu id and class.
         count of id is num of all subsentences, which is greater than num of docs(nunique of id).
 
-        df_data: dataframe of topic, document id, document class
+        df_data: dataframe of docs including document id and cols_add (such as document class)
         cols_add: list of columns for multi_topics_df
         sentiment: None, True, False. None to use self.sentiment
         """
@@ -885,8 +942,8 @@ class multi_topics_stats():
             if (sentiment_func is None) or (docs is None):
                 print('WARNING!: working without sentiment as missing inputs (sentiment_func or docs).')
             else:
-                df_data['sentiment'] = self._get_docs_sentiments(docs, multi_topics_list, 
-                                                                 topic_distr, self.topic_token_distr, 
+                df_data['sentiment'] = self._get_docs_sentiments(docs, multi_topics_list,
+                                                                 topic_distr, self.topic_token_distr,
                                                                  sentiment_func)
 
         # create multi_topics_df which shows many documents have multiple topics
@@ -927,7 +984,7 @@ class multi_topics_stats():
                                   warning_ztest_r=0.2
                                   ):
         """
-        df_data.columns: 'id', f'{col_class}', f'{col_doc}'
+        df_data.columns: dataframe of docs including id, class, and more such as its content
         sentiment_funct: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
         df_data = self._check_var(df_data, self.df_data)
@@ -1042,7 +1099,7 @@ class multi_topics_stats():
 
         multi_topics_df = self.multi_topics_df
         if multi_topics_df is None:
-            print('ERROR: Run create_multi_topics_stats first')
+            print('ERROR: Run create_multi_topics_stats or get_multi_topics_df first')
             return None
 
         aspect = self._check_aspect(df_topic_info, aspect)
@@ -1059,19 +1116,9 @@ class multi_topics_stats():
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def _check_aspect(self, df_topic_info, aspect, aspect_default='Representation'):
+    def _check_aspect(self, df_topic_info, aspect=None, aspect_default='Representation'):
         aspect = self._check_var(aspect, self.aspect)
-        # exclude 1st 3 cols Topic, Count and Name. CustomName could be included which is not list
-        aspect_list = list(df_topic_info.columns)[3:]
-        if aspect not in aspect_list:
-            print(f'WARNING: aspect {aspect} is not in {aspect_list}')
-            if aspect_default not in aspect_list:
-                print(f'ERROR: even default aspect {aspect_default} is not in {aspect_list}')
-                aspect = None
-            else:
-                print(f'Default aspect {aspect_default} is used instead')
-                aspect = aspect_default
-        return aspect
+        return check_topic_aspect(df_topic_info, aspect, aspect_default=aspect_default, start_idx=3)
 
 
     def _get_topic_representation(self, topic, df_topic_info, aspect=None):
@@ -1342,7 +1389,7 @@ class multi_topics_sentiment():
         #return subsentences
         return {self.topic_labels[k]: v for k, v in subsentences.items()}
 
-    
+
     def topic_sentiment(self, topic_subsentences, sentiment_analysis,
                         label_only=False, min_score=0,
                         max_sequence_length=2000):
@@ -1364,7 +1411,7 @@ class multi_topics_sentiment():
                     s = f'({label}) {score:.3f}'
                 scores.append(s)
             senti[topic] = scores
-            
+
         return senti
 
 
