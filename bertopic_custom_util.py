@@ -808,7 +808,11 @@ class param_study():
 
 class multi_topics_stats():
     def __init__(self, topic_distr, topic_token_distr, df_data=None, df_topic_info=None, col_class=None):
+        # A n x m matrix containing the topic distributions for all input documents 
+        #  with n being the documents and m the topics
         self.topic_distr = topic_distr
+        # A list of t x m arrays 
+        #  with t being the number of tokens for the respective document and m the topics.
         self.topic_token_distr = topic_token_distr
         self.multi_topics_df = None
         self.multi_topics_stats_df = None
@@ -817,7 +821,6 @@ class multi_topics_stats():
         self.sentiment = False
         self.aspect = None
         self.col_class = col_class
-        self.class_order_ascending = None
 
 
     def visualize_distr_per_threshold(self, max_threshhold=0.15, n_topics=5,
@@ -837,7 +840,8 @@ class multi_topics_stats():
 
         tmp_dfs = []
         for thr in tqdm.tqdm(np.arange(0, max_threshhold, 0.001), leave=False):
-            tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y >= thr, x))), topic_distr))).rename(
+            #tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y >= thr, x))), topic_distr))).rename(
+            tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y > thr, x))), topic_distr))).rename(
                 columns = {0: 'num_topics'}
             )
             tmp_df['num_docs'] = 1
@@ -901,6 +905,19 @@ class multi_topics_stats():
 
         return threshold_opt
 
+
+    def review_docs_wo_topic(self, threshold=0):
+        """
+        get docs of no topic with which topic_model.visualize_distribution fails to visualize.
+         you can see error if run topic_model.visualize_distribution(topic_distr[i])
+         where i is in the idx
+        """
+        func = lambda probas: len([x for x in probas if x > threshold])
+        idx = [i for i, x in enumerate(self.topic_distr) if func(x) == 0]
+        n = len(idx)/len(docs)
+        print(f'{n*100:.1f} % of docs without any topic (threshold {threshold}).')
+        return idx
+        
 
     def _search_min_theshold(self, num_topics_stats_df, max_share = 0.1, decr=0.01):
         """
@@ -1209,17 +1226,8 @@ class multi_topics_stats():
             return color_qual.Set2[0] # green
 
 
-    def get_opacity_significance(self, rel):
-        if rel == 'no diff':
-            return 0.2
-        if rel == 'lower':
-            return 0.6
-        if rel == 'higher':
-            return 1.0
-
-
     def visualize_class_by_topic(self, topic, df_topic_info=None,
-                                 fsize=(600,400), ylabel='share of reviews',
+                                 width=700, height=60, ylabel='share of reviews',
                                  title_length=60, barmode='stack',
                                  sentiment_order = ['positive', 'neutral', 'negative'],
                                  sentiment_color = [color_qual.Plotly[x] for x in [0,7,1]],
@@ -1227,7 +1235,8 @@ class multi_topics_stats():
                                  aspect=None,
                                  title_font_size=14,
                                  class_label_length=0,
-                                 horizontal_bar=True):
+                                 horizontal_bar=True,
+                                 margin_width=100, margin_height=100):
         """
         barmode: 'stack', 'group', 'overlay', 'relative'
         class_order_ascending: None, True, False
@@ -1249,9 +1258,6 @@ class multi_topics_stats():
 
         col_class = self.col_class
 
-        class_order_ascending = self._check_var(class_order_ascending, self.class_order_ascending)
-        self.class_order_ascending = class_order_ascending # save for next use
-
         topic_stats_df = multi_topics_stats_df[multi_topics_stats_df.topic_id == topic]\
             .sort_values(f'total_{col_class}_docs', ascending = False).set_index(col_class)
 
@@ -1262,21 +1268,6 @@ class multi_topics_stats():
         #title = f'Topic_{topic}:<br>{indent}{title}'
         title = f'Topic_{topic}: {title}'
 
-        # set plot options depending on sentiment
-        if self.sentiment:
-            showlegend = True
-            color = 'sentiment' # select legend
-            diff_opacity = list(map(self.get_opacity_significance,
-                                  topic_stats_df.diff_significance_total))
-            kw_up_traces = {'marker_line_width': 1.5, 'marker':{'opacity': diff_opacity}}
-        else:
-            showlegend = False
-            color = None
-            diff_colors = list(map(self.get_color_significance,
-                                  topic_stats_df.diff_significance_total))
-            kw_up_traces = {'marker_color': diff_colors, 'marker_line_color': diff_colors,
-                            'marker_line_width': 1.5, 'opacity': 0.9}
-
         # set bar colors
         sentiment_color = dict(zip(sentiment_order, sentiment_color))
         category_orders = {'sentiment': sentiment_order}
@@ -1286,7 +1277,23 @@ class multi_topics_stats():
             class_order = topic_stats_df.reset_index()[col_class].unique()
             class_order = sorted(class_order, reverse=(not class_order_ascending))
             category_orders.update({col_class: class_order})
+            # reorder topic_stats_df as well for color/opacity difference according to diff_significance_total
+            topic_stats_df = topic_stats_df.sort_values(by=col_class, key=lambda x: x.map({v: i for i, v in enumerate(class_order)}))
 
+        # set plot options depending on sentiment
+        if self.sentiment:
+            showlegend = True
+            color = 'sentiment' # select legend
+            kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9}
+        else:
+            showlegend = False
+            color = None
+            diff_colors = list(map(self.get_color_significance,
+                                  topic_stats_df.diff_significance_total))
+            kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9,
+                            'marker_color': diff_colors, 'marker_line_color': diff_colors}
+
+        
         df_plot = topic_stats_df.reset_index()
         # split wine name for plot labels
         if class_label_length > 0:
@@ -1298,12 +1305,19 @@ class multi_topics_stats():
             orientation='h'
             plot_total_share = lambda fig, x, **kw: fig.add_vline(x=x, **kw)
             kw_uplout = {'yaxis_title': None}
+            height = min(df_plot[y].nunique() * height + margin_height, 800)
         else:
             x = col_class
             y = f'topic_{col_class}_share'
             orientation='v'
             plot_total_share = lambda fig, y, **kw: fig.add_hline(y=y, **kw)
             kw_uplout = {'xaxis_title': None}
+            width = min(df_plot[y].nunique() * width + margin_width, 1200)
+
+        # testing
+        #return (df_plot, x, y, orientation, title, color, category_orders,
+        #        sentiment_color, barmode, col_class, ylabel, width, height,
+        #        px, showlegend, title_font_size, kw_uplout, kw_up_traces)
 
         fig = px.bar(df_plot,
                      x = x,
@@ -1316,8 +1330,8 @@ class multi_topics_stats():
                      barmode=barmode,
                      text_auto = '.1f',
                      labels = {f'topic_{col_class}_share': f'{ylabel}, %'},
-                     hover_data=['topic_id'],
-                     width=fsize[0], height=fsize[1])
+                     hover_data=['diff_significance_total'],
+                     width=width, height=height)
 
         fig.update_layout(showlegend=showlegend,
                           title_font_size=title_font_size,
@@ -1339,8 +1353,8 @@ class multi_topics_stats():
 
         plot_total_share(fig, topic_total_share,
                          line_dash="dot",
-                         line_width=2,
-                         #line_color=colormap[8],
+                         line_width=1.2,
+                         line_color='gray',
                          #annotation_text=f'Topic_{topic} share {topic_total_share:.0f}%',
                          annotation_text=f'topic share {topic_total_share:.0f}%',
                          annotation_position="bottom right",
@@ -1350,6 +1364,7 @@ class multi_topics_stats():
 
         fig.show()
         return topic_stats_df
+
 
 class multi_topics_sentiment():
     def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None, max_sequence_length=2000):
