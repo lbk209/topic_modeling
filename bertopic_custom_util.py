@@ -50,8 +50,8 @@ def split_str(string, length=50, split='\n', indent=''):
     return words_split
 
 
-def print_with_line_feed(input_string, line_length=50):
-    ws = split_str(input_string, length=line_length, split='\n', indent='  ')
+def print_with_line_feed(input_string, line_length=50, split='\n', indent='  '):
+    ws = split_str(input_string, length=line_length, split=split, indent=indent)
     print(ws)
 
 
@@ -94,7 +94,7 @@ class utils():
         """
         df = self.topic_model.get_topic_info()
 
-        a = len(df) - 1
+        a = len(df.loc[df.Topic > -1])
         print(f'num of topics: {a}')
 
         a = df.loc[df.Topic == -1]['Count']
@@ -131,7 +131,7 @@ class utils():
 
         dict_label = df.set_index('Topic')[aspect].to_dict()
         dict_label = {k: ', '.join(v) if isinstance(v, (list, tuple)) else v for k, v in dict_label.items()}
-    
+
         if print_labels:
             _ = [print_with_line_feed(f'{k}: {v}', length) for k,v in dict_label.items()]
 
@@ -159,22 +159,37 @@ class utils():
         return rep_docs
 
 
-    def get_topic_docs(self, docs=None, tids=None, label=None):
+    def get_topic_docs(self, topic, class_name=None, num_print=5, length_print=200,
+                       docs=None, classes_all=None, aspect=None):
+        """
+        get docs of the topic and print the docs of num_print.
+        """
         docs = self._check_var(docs, self.docs)
         if docs is None:
             print('ERROR!: missing docs')
             return None
 
-        df = pd.DataFrame({'doc': docs, 'topic':self.topic_model.topics_})
-        topic_to_label = self.get_topic_labels(aspect=label, print_labels=False)
-        df['topic_label'] = df.topic.apply(lambda x: topic_to_label[x])
-        
-        if tids is not None:
-            if not isinstance(tids, list):
-                tids = [tids]
-            df = df.loc[df.topic.isin(tids)]
+        topics = self.topic_model.topics_
+        if (class_name is not None) and (classes_all is not None):
+            cond = lambda x: (x[0] == topic) and (class_name.lower() in x[1].lower())
+            topic_docs = [docs[i] for i, x in enumerate(zip(topics, classes_all)) if cond(x)]
+        else:
+            topic_docs = [docs[i] for i, x in enumerate(topics) if x == topic]
 
-        return df
+        # print docs of num_print
+        if num_print > 0:
+            if len(topic_docs) > num_print:
+                print(f'Printing {num_print} docs from {len(topic_docs)}')
+                docs_print = np.random.choice(topic_docs, num_print, replace=False)
+            else:
+                docs_print = topic_docs
+
+            topic_to_label = self.get_topic_labels(aspect=aspect, print_labels=False)
+            print(f'Topic {topic}: {topic_to_label[topic]}')
+            _ = [print_with_line_feed(f'-. {x}', length_print, indent='') for x in docs_print]
+
+        return topic_docs
+
 
 
     def merge_topics(self, topics_to_merge, docs=None, name='KeyBERT'):
@@ -953,7 +968,8 @@ class multi_topics_stats():
             if len(tids) == 0:
                 senti = tids
             else:
-                senti = sentiment_func(doc, topic_distr[i], topic_token_distr[i], tids=tids)
+                #senti = sentiment_func(doc, topic_distr[i], topic_token_distr[i], tids=tids)
+                senti = sentiment_func(doc, topic_distr[i], topic_token_distr[i], tids)
             subs_senti.append(senti)
         return subs_senti
 
@@ -972,9 +988,6 @@ class multi_topics_stats():
         if df_data is None:
             print('ERROR: No df_data assigned')
             return None
-
-        if cols_add is None:
-            cols_add = [self.col_class]
 
         topic_distr = self.topic_distr
 
@@ -1012,7 +1025,8 @@ class multi_topics_stats():
                     'id': rec['id'], # doc id
                 }
                 # update with additional keys such as class and doc
-                kw.update({x: rec[x] for x in cols_add})
+                if cols_add is not None:
+                    kw.update({x: rec[x] for x in cols_add})
                 if sentiment:
                     kw.update({'sentiment': topic_sentiments[i]})
                 tmp_data.append(kw)
@@ -1050,25 +1064,47 @@ class multi_topics_stats():
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def create_multi_topics_stats(self, sentiment=None, alpha=0.05, warning_ztest_r=0.2):
+    def create_multi_topics_stats(self, col_class=None, alpha=0.05, warning_ztest_r=0.2,
+                                  # inputs for get_multi_topics_df
+                                  threshold=0, df_data=None, cols_add=None,
+                                  sentiment=None, sentiment_func=None, docs=None):
         """
         create stats from self.multi_topics_df
         """
-        multi_topics_df = self.multi_topics_df
-        if multi_topics_df is None:
-            print('ERROR: Run get_multi_topics_df first')
+        # check col_class which is requisite
+        col_class = self._check_var(col_class, self.col_class)
+        if col_class is None:
+            print('ERROR: Set col_class.')
             return None
 
+        # check and set sentiment
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment is not None:
             # update for visualize_class_by_topic
             self.sentiment = sentiment
 
-        if sentiment:
-            if 'sentiment' not in multi_topics_df.columns:
-                print('ERROR: run get_multi_topics_df with sentiment option first.')
-                self.sentiment = False
-                return None
+        # get multi_topics_df
+        multi_topics_df = self.multi_topics_df
+        if multi_topics_df is None:
+            if sentiment: # Run get_multi_topics_df with sentiment
+                kwa = dict(sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
+            else:
+                kwa = dict(sentiment=sentiment)
+
+            multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
+        else:
+            if col_class not in multi_topics_df.columns:
+                if sentiment: # Run get_multi_topics_df with sentiment
+                    kwa = dict(sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
+                else:
+                    kwa = dict(sentiment=sentiment)
+
+                multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
+            else:
+                if sentiment and ('sentiment' not in multi_topics_df.columns):
+                    # Run get_multi_topics_df with sentiment
+                    kwa = dict(sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
+                    multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
 
         # create multi_topics_stats_df
         tmp_data = []
@@ -1510,3 +1546,19 @@ class multi_topics_sentiment():
             senti = {tids[i]: v for i, v in enumerate(senti.values())}
 
         return (subs, senti)
+
+
+
+    def mts_sentiment_func(self, n_padding=1, min_score=0):
+
+        def sentiment_func(doc, topic_distr_doc, topic_token_distr_doc, tids):
+            _, senti = self.get_docu_sentiments(doc, topic_distr_doc, topic_token_distr_doc, tids=tids,
+                                                # required settings
+                                                min_proba = 0, min_token_proba = 0,
+                                                single_subsentence=True, label_only=True,
+                                                # optional
+                                                n_padding=n_padding, min_score=min_score
+                                                )
+            return [x for x_list in senti.values() for x in x_list]
+
+        return sentiment_func
