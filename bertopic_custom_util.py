@@ -159,10 +159,10 @@ class utils():
         return rep_docs
 
 
-    def get_topic_docs(self, topic, class_name=None, num_print=5, length_print=200,
+    def get_topic_docs(self, topic, class_name=None, num_print=5, length_print=120,
                        docs=None, classes_all=None, aspect=None):
         """
-        get docs of the topic and print the docs of num_print.
+        get docs of the topic and print the num_print of docs.
         """
         docs = self._check_var(docs, self.docs)
         if docs is None:
@@ -808,10 +808,10 @@ class param_study():
 
 class multi_topics_stats():
     def __init__(self, topic_distr, topic_token_distr, df_data=None, df_topic_info=None, col_class=None):
-        # A n x m matrix containing the topic distributions for all input documents 
+        # A n x m matrix containing the topic distributions for all input documents
         #  with n being the documents and m the topics
         self.topic_distr = topic_distr
-        # A list of t x m arrays 
+        # A list of t x m arrays
         #  with t being the number of tokens for the respective document and m the topics.
         self.topic_token_distr = topic_token_distr
         self.multi_topics_df = None
@@ -912,12 +912,13 @@ class multi_topics_stats():
          you can see error if run topic_model.visualize_distribution(topic_distr[i])
          where i is in the idx
         """
+        topic_distr = self.topic_distr
         func = lambda probas: len([x for x in probas if x > threshold])
-        idx = [i for i, x in enumerate(self.topic_distr) if func(x) == 0]
-        n = len(idx)/len(docs)
+        idx = [i for i, x in enumerate(topic_distr) if func(x) == 0]
+        n = len(idx) / topic_distr.shape[0]
         print(f'{n*100:.1f} % of docs without any topic (threshold {threshold}).')
         return idx
-        
+
 
     def _search_min_theshold(self, num_topics_stats_df, max_share = 0.1, decr=0.01):
         """
@@ -1293,7 +1294,7 @@ class multi_topics_stats():
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9,
                             'marker_color': diff_colors, 'marker_line_color': diff_colors}
 
-        
+
         df_plot = topic_stats_df.reset_index()
         # split wine name for plot labels
         if class_label_length > 0:
@@ -1364,6 +1365,56 @@ class multi_topics_stats():
 
         fig.show()
         return topic_stats_df
+
+
+    def get_multi_topic_docs(self, topic, class_name=None, num_print=5, length_print=120,
+                             docs=None, classes_all=None, aspect=None,
+                             df_topic_info=None, col_class=None):
+        """
+        get docs of the multi topic and print the num_print of docs.
+        docs: set as kwa following the convention of utils.get_topic_docs
+        """
+        if docs is None:
+            print('ERROR: No docs assigned.')
+            return None
+
+        multi_topics_df = self.multi_topics_df
+        if multi_topics_df is None:
+            print('ERROR: Run get_multi_topics_df first')
+            return None
+
+        cond = (multi_topics_df.topic == topic)
+        if class_name is not None:
+            col_class = self._check_var(col_class, self.col_class)
+            if col_class is None:
+                print('ERROR: Set col_class.')
+                return None
+            cond = cond & multi_topics_df[col_class].str.lower().str.contains(class_name.lower())
+
+        topic_docs = [docs[x] for x in multi_topics_df.loc[cond].id.unique()]
+
+        # get topic label
+        df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
+        if df_topic_info is None:
+            print('ERROR: No df_topic_info assigned')
+            return None
+        aspect = self._check_aspect(df_topic_info, aspect)
+        if aspect is None:
+            return None
+        topic_name = self._get_topic_representation(topic, df_topic_info, aspect)
+
+        # print docs of num_print
+        if num_print > 0:
+            if len(topic_docs) > num_print:
+                print(f'Printing {num_print} docs from {len(topic_docs)}')
+                docs_print = np.random.choice(topic_docs, num_print, replace=False)
+            else:
+                docs_print = topic_docs
+
+            print(f'Topic {topic}: {topic_name}')
+            _ = [print_with_line_feed(f'-. {x}', length_print, indent='') for x in docs_print]
+
+        return topic_docs
 
 
 class multi_topics_sentiment():
