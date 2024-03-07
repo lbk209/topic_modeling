@@ -69,7 +69,7 @@ def plot_topic_distr(files):
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True,
+    app.run(debug=False,
             #jupyter_width=arg_width, #"70%"
             #jupyter_height=arg_height, #"70%"
             )
