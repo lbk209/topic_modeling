@@ -13,6 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from plotly.colors import qualitative as color_qual
+import plotly.io as pio
 
 from itertools import combinations
 from statsmodels.stats.proportion import proportions_ztest
@@ -1237,10 +1238,13 @@ class multi_topics_stats():
                                  title_font_size=14,
                                  class_label_length=0,
                                  horizontal_bar=True,
-                                 margin_width=100, margin_height=100):
+                                 margin_width=100, margin_height=100,
+                                 filename=None, noshow=False):
         """
         barmode: 'stack', 'group', 'overlay', 'relative'
         class_order_ascending: None, True, False
+        filename: file name with path. create file in working dir if no path exits
+        noshow: set to True when just saving fig
         """
 
         df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
@@ -1362,8 +1366,18 @@ class multi_topics_stats():
                          #annotation_font_size=20,
                          annotation_font_color="gray",
                         )
+        if not noshow:
+            fig.show()
 
-        fig.show()
+        # save fig as json
+        if filename is not None:
+            path = '/'.join(filename.split('/')[:-1])
+            if not os.path.isdir(path):
+                # to save on working dir
+                filename = filename.split('/')[-1]
+            f = f'{filename}_topic{tid:02}.json'
+            pio.write_json(fig, f)
+
         return topic_stats_df
 
 
