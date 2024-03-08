@@ -6,22 +6,23 @@ import dash_bootstrap_components as dbc
 import sys
 import io, re, os
 import base64
+import argparse
 
-# Command-Line Arguments: file prefix, file path
-if len(sys.argv) < 2:
-    print('ERROR: No prefix')
 
-fig_prfx = sys.argv[1]
-if len(sys.argv) >= 3:
-    fig_path = sys.argv[2]
-else:
-    fig_path = '.'
+# Parsing command-line options and arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("prfx", help="prefix of fig files")
+parser.add_argument("-d", "--directory", help="path to fig files", default=".")
+parser.add_argument("-p", "--pattern", help="regular expression for fig files", default=r'\d+(?=\.json)')
+parser.add_argument("-jh", "--height", help="layout height", default=650, type=int)
+parser.add_argument("-jw", "--width", help="layout width", default="100%")
+args = parser.parse_args()
 
-# get json file pattern
-if len(sys.argv) >= 4:
-    pattern = sys.argv[3]
-else:
-    pattern = r'\d+(?=\.json)'
+fig_prfx = args.prfx
+fig_path = args.directory
+pattern = args.pattern
+jupyter_width = args.width
+jupyter_height = args.height
 
 debug = False
 
@@ -162,6 +163,6 @@ def load_topics(contents, filename, date):
 # Run the app
 if __name__ == '__main__':
     app.run(debug=debug,
-            #jupyter_width=arg_width, #"70%"
-            #jupyter_height=arg_height, #"70%"
+            jupyter_width=jupyter_width, 
+            jupyter_height=jupyter_height,
             )
