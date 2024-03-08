@@ -10,13 +10,12 @@ import base64
 # Command-Line Arguments: file prefix, file path
 if len(sys.argv) < 2:
     print('ERROR: No prefix')
-    return None
 
-file = sys.argv[1]
+fig_prfx = sys.argv[1]
 if len(sys.argv) >= 3:
-    path = sys.argv[2]
+    fig_path = sys.argv[2]
 else:
-    path = '.'
+    fig_path = '.'
 
 # get json file pattern
 if len(sys.argv) >= 4:
@@ -25,19 +24,19 @@ else:
     pattern = r'\d+(?=\.json)'
     
 # get json file list
-figs_files = [x for x in os.listdir(path) if x.startswith(file)]
-figs_files = sorted(figs_files)
+fig_files = [x for x in os.listdir(fig_path) if x.startswith(fig_prfx)]
+fig_files = sorted(fig_files)
 
-n = len(figs_files)
+n = len(fig_files)
 if n == 0:
     print('ERROR!: No fig to read')
-    return None
 else:
-    print(f'{n} figs ready to load')
+    #print(f'{n} figs ready to load')
+    pass
     
 # create topic options (dicts of label and value) for dropdown menu
-tids = [int(re.findall(pattern, x)[0]) for x in figs_files]
-options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, figs_files)]
+tids = [int(re.findall(pattern, x)[0]) for x in fig_files]
+options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, fig_files)]
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
@@ -90,7 +89,7 @@ def plot_topic_distr(files):
 
     graphs = []
     for f in files:
-        f = f'{arg_path}/{f}'
+        f = f'{fig_path}/{f}'
         fig = pio.read_json(f)
         g = dcc.Graph(figure=fig, className="border")
         graphs.append(g)
