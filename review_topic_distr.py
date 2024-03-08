@@ -5,8 +5,34 @@ import plotly.io as pio
 import dash_bootstrap_components as dbc
 import sys, json
 import io, re
-
 import base64
+
+
+def get_files(file, path='.'):
+    """
+    get json file list
+    """
+    figs_files = [x for x in os.listdir(path) if x.startswith(file)]
+    figs_files = sorted(figs_files)
+
+    n = len(figs_files)
+    if n == 0:
+        print('ERROR!: No fig to read')
+    else:
+        print(f'{n} figs ready to load')
+    
+    return figs_files
+
+
+def build_dropdown(figs_files, pattern = r'\d+(?=\.json)', as_input=True):
+    """
+    create topic options (dicts of label and value) for dropdown menu
+    """
+    tids = [int(re.findall(pattern, x)[0]) for x in figs_files]
+    options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, figs_files)]
+    if as_input:
+        options = f'{options}'.replace('\'', '\"')
+    return options
 
 
 # Command-Line Arguments: fig files, their path
