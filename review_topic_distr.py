@@ -86,7 +86,7 @@ def plot_topic_distr(files):
             layout.append(dbc.Row(cols, className="mt-2"))
             cols = []
 
-    layout = 'figs: '  + ', '.join(files) # testing
+    #layout = 'figs: '  + ', '.join(files) # testing
     return layout
 
 
