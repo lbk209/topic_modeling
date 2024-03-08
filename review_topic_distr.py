@@ -3,50 +3,41 @@ from dash import Dash, html, dcc, callback, Output, Input, State
 import plotly.express as px
 import plotly.io as pio
 import dash_bootstrap_components as dbc
-import sys, json
-import io, re
+import sys
+import io, re, os
 import base64
 
+# Command-Line Arguments: file prefix, file path
+if len(sys.argv) < 2:
+    print('ERROR: No prefix')
+    return None
 
-def get_files(file, path='.'):
-    """
-    get json file list
-    """
-    figs_files = [x for x in os.listdir(path) if x.startswith(file)]
-    figs_files = sorted(figs_files)
-
-    n = len(figs_files)
-    if n == 0:
-        print('ERROR!: No fig to read')
-    else:
-        print(f'{n} figs ready to load')
-    
-    return figs_files
-
-
-def build_dropdown(figs_files, pattern = r'\d+(?=\.json)', as_input=True):
-    """
-    create topic options (dicts of label and value) for dropdown menu
-    """
-    tids = [int(re.findall(pattern, x)[0]) for x in figs_files]
-    options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, figs_files)]
-    if as_input:
-        options = f'{options}'.replace('\'', '\"')
-    return options
-
-
-# Command-Line Arguments: fig files, their path
-arg_options = json.loads(sys.argv[1])
-
+file = sys.argv[1]
 if len(sys.argv) >= 3:
-    arg_path = sys.argv[2]
+    path = sys.argv[2]
 else:
-    arg_path = '.'
+    path = '.'
 
-# testing
-#arg_options = options
-#arg_path = figs_path
+# get json file pattern
+if len(sys.argv) >= 4:
+    pattern = sys.argv[3]
+else:
+    pattern = r'\d+(?=\.json)'
+    
+# get json file list
+figs_files = [x for x in os.listdir(path) if x.startswith(file)]
+figs_files = sorted(figs_files)
 
+n = len(figs_files)
+if n == 0:
+    print('ERROR!: No fig to read')
+    return None
+else:
+    print(f'{n} figs ready to load')
+    
+# create topic options (dicts of label and value) for dropdown menu
+tids = [int(re.findall(pattern, x)[0]) for x in figs_files]
+options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, figs_files)]
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
@@ -56,7 +47,7 @@ app = Dash(__name__, external_stylesheets=external_stylesheets)
 
 title =  html.H4("Topic Distribution", className="text-primary")
 
-dropdown = dcc.Dropdown(options=arg_options, value=arg_options[0]['value'],
+dropdown = dcc.Dropdown(options=options, value=options[0]['value'],
                         id="topics", multi=True)
 
 buttons = dbc.Stack(
