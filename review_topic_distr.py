@@ -1,24 +1,32 @@
 # Import packages
-from dash import Dash, html, dash_table, dcc, callback, Output, Input, State
+from dash import Dash, html, dash_table, dcc, callback, Output, Input, State, ctx
 import plotly.express as px
 import plotly.io as pio
 import dash_bootstrap_components as dbc
 import sys, json
+import io, re
+
+import base64
 
 
 # Command-Line Arguments: fig files, their path
+"""
 arg_options = json.loads(sys.argv[1])
 
 if len(sys.argv) >= 3:
     arg_path = sys.argv[2]
 else:
     arg_path = '.'
+"""
+
+arg_options = options
+arg_path = figs_path
+
 
 
 # Initialize the app - incorporate a Dash Bootstrap theme
-#external_stylesheets = [dbc.themes.FLATLY]
+external_stylesheets = [dbc.themes.FLATLY]
 #external_stylesheets=[dbc.themes.BOOTSTRAP]
-external_stylesheets=[dbc.themes.FLATLY]
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
 header =  html.Div("Topic Distribution")
@@ -28,9 +36,11 @@ dropdown = dcc.Dropdown(options=arg_options, value=arg_options[0]['value'], id="
 
 download = html.Div(
     [
-        dbc.Button("Save Topics", id='submit-button-topic', 
-                   color="secondary", className="me-1", ),
-        
+        dbc.Button("Save", id='save-button',
+                   color="secondary", className="me-2", ),
+        dcc.Upload(dbc.Button("Load", color="secondary", className="me-2", ),
+                   id='load-topics')
+
     ], className= "m-1"
 )
 
@@ -39,10 +49,12 @@ app.layout = dbc.Container(
     [
         dbc.Row(dbc.Col(header, lg=6)),
         dbc.Row([dbc.Col(dropdown, lg=6), dbc.Col(download)], align="center"),
+        dbc.Row(dbc.Col(html.Div(id="loaded"))), # testing
         dbc.Row(dbc.Col(html.Div(id="graphs"))),
-        #dbc.Row(dbc.Col(html.Div(id="save"))), # testing
+        #dbc.Row(dbc.Col(html.Div(id="save-topics"))), # testing
         dcc.Download(id="save-topics"),
-        
+        #dcc.Upload(id='load-topics')
+
     ],
     className="dbc p-4",
     fluid=True,
@@ -74,15 +86,15 @@ def plot_topic_distr(files):
             layout.append(dbc.Row(cols, className="mt-2"))
             cols = []
 
-    #layout = ', '.join(files) # testing
+    layout = 'figs: '  + ', '.join(files) # testing
 
     return layout
 
 
 @callback(
-    #Output('save', 'children'),
+    #Output('save-topics', 'children'),
     Output("save-topics", "data"),
-    Input('submit-button-topic', 'n_clicks'),
+    Input('save-button', 'n_clicks'),
     State('topics', 'value'),
     prevent_initial_call=True
 )
@@ -92,6 +104,19 @@ def save_topics(n_clicks, files):
     layout = ', '.join(files) # testing
     #return f'{layout}'
     return dict(content=f'{layout}', filename="topics.txt")
+
+
+@callback(Output(component_id="loaded", component_property="children"),
+          Input('load-topics', 'contents'),
+          State('load-topics', 'filename'),
+          State('load-topics', 'last_modified'),
+          prevent_initial_call=True)
+def load_topics(contents, filename, date):
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    files = decoded.decode('utf-8')
+    files = re.findall(r'\w+\.json', files)
+    return files
 
 
 # Run the app
