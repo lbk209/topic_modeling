@@ -1,5 +1,5 @@
 # Import packages
-from dash import Dash, html, dcc, callback, Output, Input, State
+from dash import Dash, html, dcc, callback, Output, Input, State, no_update
 import plotly.express as px
 import plotly.io as pio
 import dash_bootstrap_components as dbc
@@ -22,7 +22,15 @@ if len(sys.argv) >= 4:
     pattern = sys.argv[3]
 else:
     pattern = r'\d+(?=\.json)'
-    
+
+debug = False
+
+# testing
+#fig_path = 'reds2'
+#fig_prfx = 'sdistr'
+#pattern = r'\d+(?=\.json)'
+#debug = True
+
 # get json file list
 fig_files = [x for x in os.listdir(fig_path) if x.startswith(fig_prfx)]
 fig_files = sorted(fig_files)
@@ -33,7 +41,7 @@ if n == 0:
 else:
     #print(f'{n} figs ready to load')
     pass
-    
+
 # create topic options (dicts of label and value) for dropdown menu
 tids = [int(re.findall(pattern, x)[0]) for x in fig_files]
 options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, fig_files)]
@@ -130,22 +138,30 @@ def save_topics(n_clicks, files):
     return dict(content=f'{content}', filename=filename)
 
 
-@callback(Output(component_id="topics", component_property="value"),
+@callback([Output(component_id="topics", component_property="value"),
+          Output('load-topics', 'contents')],
           Input('load-topics', 'contents'),
           State('load-topics', 'filename'),
           State('load-topics', 'last_modified'),
           prevent_initial_call=True)
 def load_topics(contents, filename, date):
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
-    files = decoded.decode('utf-8') # a string containing json file names
-    files = re.findall(r'\w+\.json', files) # list of json files
-    return files
+    try:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        files = decoded.decode('utf-8') # a string containing json file names
+        files = re.findall(r'\w+\.json', files) # list of json files
+        if len(files) == 0:
+            files = no_update
+    except Exception as e:
+        print(e)
+        files = no_update
+        
+    return files, None
 
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True,
+    app.run(debug=debug,
             #jupyter_width=arg_width, #"70%"
             #jupyter_height=arg_height, #"70%"
             )
