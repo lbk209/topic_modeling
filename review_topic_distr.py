@@ -1,5 +1,5 @@
 # Import packages
-from dash import Dash, html, dash_table, dcc, callback, Output, Input, State, ctx
+from dash import Dash, html, dcc, callback, Output, Input, State, ctx
 import plotly.express as px
 import plotly.io as pio
 import dash_bootstrap_components as dbc
@@ -10,19 +10,12 @@ import base64
 
 
 # Command-Line Arguments: fig files, their path
-"""
 arg_options = json.loads(sys.argv[1])
 
 if len(sys.argv) >= 3:
     arg_path = sys.argv[2]
 else:
     arg_path = '.'
-"""
-
-arg_options = options
-arg_path = figs_path
-
-
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
@@ -37,8 +30,8 @@ dropdown = dcc.Dropdown(options=arg_options, value=arg_options[0]['value'], id="
 download = html.Div(
     [
         dbc.Button("Save", id='save-button',
-                   color="secondary", className="me-2", ),
-        dcc.Upload(dbc.Button("Load", color="secondary", className="me-2", ),
+                   color="secondary", className="me-2"),
+        dcc.Upload(dbc.Button("Load", color="secondary", className="me-2"),
                    id='load-topics')
 
     ], className= "m-1"
@@ -106,7 +99,8 @@ def save_topics(n_clicks, files):
     return dict(content=f'{layout}', filename="topics.txt")
 
 
-@callback(Output(component_id="loaded", component_property="children"),
+@callback(#Output(component_id="loaded", component_property="children"),
+          Output(component_id="topics", component_property="value"),
           Input('load-topics', 'contents'),
           State('load-topics', 'filename'),
           State('load-topics', 'last_modified'),
@@ -115,7 +109,7 @@ def load_topics(contents, filename, date):
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
     files = decoded.decode('utf-8')
-    files = re.findall(r'\w+\.json', files)
+    files = re.findall(r'\w+\.json', files) # list of json files
     return files
 
 
