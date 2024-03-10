@@ -1263,7 +1263,9 @@ class multi_topics_stats():
 
         col_class = self.col_class
 
-        topic_stats_df = multi_topics_stats_df[multi_topics_stats_df.topic_id == topic]\
+        cond = (multi_topics_stats_df.topic_id == topic)
+        cond = cond & (multi_topics_stats_df[f'topic_{col_class}_share'] > 0)
+        topic_stats_df = multi_topics_stats_df.loc[cond]\
             .sort_values(f'total_{col_class}_docs', ascending = False).set_index(col_class)
 
         # set plot title
@@ -1310,7 +1312,8 @@ class multi_topics_stats():
             orientation='h'
             plot_total_share = lambda fig, x, **kw: fig.add_vline(x=x, **kw)
             kw_uplout = {'yaxis_title': None}
-            height = min(df_plot[y].nunique() * height + margin_height, 800)
+            height = max(df_plot[y].nunique() * height + margin_height, 300)
+            height = min(height, 800)
         else:
             x = col_class
             y = f'topic_{col_class}_share'
@@ -1375,7 +1378,7 @@ class multi_topics_stats():
             if not os.path.isdir(path):
                 # to save on working dir
                 filename = filename.split('/')[-1]
-            f = f'{filename}_topic{topic:02}.json'
+            f = f'{filename}_topic{tid:02}.json'
             pio.write_json(fig, f)
 
         return topic_stats_df
