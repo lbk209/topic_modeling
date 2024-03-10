@@ -1378,7 +1378,7 @@ class multi_topics_stats():
             if not os.path.isdir(path):
                 # to save on working dir
                 filename = filename.split('/')[-1]
-            f = f'{filename}_topic{tid:02}.json'
+            f = f'{filename}_topic{topic:02}.json'
             pio.write_json(fig, f)
 
         return topic_stats_df
