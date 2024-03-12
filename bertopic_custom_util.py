@@ -31,6 +31,8 @@ def read_csv(file, path_data, cols_eval=None, **kwargs):
     if cols_eval is None:
         converters=None
     else:
+        if not isinstance(cols_eval, list):
+            cols_eval = [cols_eval]
         converters= {c: lambda x: eval(x) for c in cols_eval}
 
     df_reviews = pd.DataFrame()
