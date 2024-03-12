@@ -27,6 +27,7 @@ def read_csv(file, path_data, cols_eval=None, **kwargs):
 
     if len(files) == 0:
         print('ERROR!: No csv to read')
+        return None
 
     if cols_eval is None:
         converters=None
