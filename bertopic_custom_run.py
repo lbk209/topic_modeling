@@ -4,7 +4,7 @@ from bertopic.representation import KeyBERTInspired
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 
-#from bertopic_custom_util import utils
+from bertopic_custom_util import utils
 
 
 def bertopic_batch(docs,
