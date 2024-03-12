@@ -835,7 +835,7 @@ class multi_topics_stats():
          and return optimized threshold to minimize the both documents of lowest number and largest number of topics
         max_threshhold: max of x axis
         n_topics: 1~8
-        vl_max_share: see max_share of _search_min_theshold
+        vl_max_share: see max_share of _search_min_threshold
         """
         topic_distr = self.topic_distr
 
@@ -862,7 +862,7 @@ class multi_topics_stats():
 
         num_topics_stats_df = num_topics_stats_df.apply(lambda x: 100.*x/num_topics_stats_df.sum(axis = 1))
 
-        threshold_opt = self._search_min_theshold(num_topics_stats_df, max_share=vl_max_share, decr=vl_decr)
+        threshold_opt = self._search_min_threshold(num_topics_stats_df, max_share=vl_max_share, decr=vl_decr)
         if threshold_opt is None:
             print(f'WARNING: fail to find threshold with vl_max_share {vl_max_share}.')
 
@@ -887,6 +887,7 @@ class multi_topics_stats():
                 #margin=dict(l=20, r=20, t=100, b=20),
                 margin=dict(t=margin_top, b=margin_bot),
                 #paper_bgcolor="LightSteelBlue",
+                yaxis=dict(range=[0, 100]),
                 )
 
 
@@ -921,7 +922,7 @@ class multi_topics_stats():
         return idx
 
 
-    def _search_min_theshold(self, num_topics_stats_df, max_share = 0.1, decr=0.01):
+    def _search_min_threshold(self, num_topics_stats_df, max_share = 0.1, decr=0.01):
         """
         search threshold to minimize the shares of 0 topic and n+ topic
         """
@@ -933,7 +934,6 @@ class multi_topics_stats():
             cond = cond & (num_topics_stats_df.iloc[:, -1] < max_share)
             thresholds = num_topics_stats_df.loc[cond].index.values
             n = len(thresholds)
-            prv_th = None
             if n > 1:
                 prv_th = thresholds
                 max_share -= decr
@@ -941,7 +941,7 @@ class multi_topics_stats():
                 if n == 1:
                     threshold = thresholds[0]
                 else:
-                    threshold = prv_th
+                    threshold = prv_th.mean()
                 break
 
         return threshold
