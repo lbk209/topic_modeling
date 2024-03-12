@@ -19,16 +19,20 @@ def bertopic_batch(docs,
                    ####
                    embedding_model=None,
                    embeddings=None,
+                   hdbscan_model=None,
+                   representation_model=None,
+                   vocabulary=None,
                    ngram_range=(1, 3),
                    prediction_data=True,
                    gen_min_span_tree=True,
-                   top_n_words=5,
+                   top_n_words=10,
                    calculate_probabilities=False,
                    random_state=42,
                    verbose=False,
-                   hdbscan_model=None,
-                   custom_label='keybert',
-                   reduced_embeddings=False
+                   custom_label=None,
+                   reduced_embeddings=False,
+                   target_class=None,
+                   seed_topic_list=None
                    ):
 
     if (embeddings is None) and reduced_embeddings:
@@ -37,6 +41,7 @@ def bertopic_batch(docs,
 
     #-- sub-models
     vectorizer_model = CountVectorizer(stop_words="english", ngram_range=ngram_range,
+                                       vocabulary=vocabulary,
                                        min_df=min_df, max_df=max_df)
 
     umap_model = UMAP(
@@ -56,9 +61,16 @@ def bertopic_batch(docs,
             )
 
     keybert = KeyBERTInspired()
-    representation_model = {
-        "KeyBERT": keybert
-    }
+    #main_repr = {"Main": keybert}
+    main_repr = {"KeyBERT": keybert}
+    if representation_model is None:
+        representation_model = main_repr
+    else:
+        if isinstance(representation_model, dict):
+            representation_model.update(main_repr)
+        else:
+            print('ERROR: set representation_model as dict')
+            return None
 
     #-- train bertopic
     topic_model = BERTopic(
@@ -70,22 +82,31 @@ def bertopic_batch(docs,
 
         top_n_words=top_n_words,
         calculate_probabilities=calculate_probabilities,
-        verbose=verbose
+        verbose=verbose,
+
+        seed_topic_list=seed_topic_list
     )
+
+    #return topic_model # testing
 
     # Train model
     try:
-        topics, probs = topic_model.fit_transform(docs, embeddings)
-
+        topics, probs = topic_model.fit_transform(docs, embeddings=embeddings,
+                                                  y=target_class)
         # set custom label
-        if custom_label == 'keybert':
-            tm_post = utils(topic_model)
-            tm_post.set_custom_labels(name='KeyBERT')
-            
+        if custom_label is not None:
+            if custom_label not in representation_model.keys():
+                print(f'WARNING: the label {custom_label} not available')
+                custom_label = 'KeyBERT'
+        else:
+            custom_label = 'KeyBERT'
+        tm_post = utils(topic_model)
+        tm_post.set_custom_labels(name=custom_label)
+
     except Exception as e:
         print('ERROR!:', e)
         tm_post = None
-        
+
     if (tm_post is not None) and reduced_embeddings:
         k = ['n_neighbors', 'min_dist','random_state']
         v = [n_neighbors, min_dist, random_state]
@@ -94,6 +115,3 @@ def bertopic_batch(docs,
         tm_post.reduced_embeddings = reduced_embeddings
 
     return tm_post
-
-
-
