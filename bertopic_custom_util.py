@@ -19,7 +19,7 @@ from itertools import combinations
 from statsmodels.stats.proportion import proportions_ztest
 
 
-def read_csv(file, path_data, **kwargs):
+def read_csv(file, path_data, cols_eval=None, **kwargs):
     """
     kwargs: keyword args for pd.read_csv
     """
@@ -28,9 +28,16 @@ def read_csv(file, path_data, **kwargs):
     if len(files) == 0:
         print('ERROR!: No csv to read')
 
+    if cols_eval is None:
+        converters=None
+    else:
+        if not isinstance(cols_eval, list):
+            cols_eval = [cols_eval]
+        converters= {c: lambda x: eval(x) for c in cols_eval}
+
     df_reviews = pd.DataFrame()
     for f in files:
-        df = pd.read_csv(f'{path_data}/{f}', **kwargs)
+        df = pd.read_csv(f'{path_data}/{f}', converters=converters, **kwargs)
         df_reviews = pd.concat([df_reviews, df])
 
     return df_reviews.reset_index(drop=True)
