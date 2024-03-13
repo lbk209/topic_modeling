@@ -37,7 +37,7 @@ fig_path = 'cabs2'
 fig_prfx = 'sdistr'
 pattern = r'\d+(?=\.json)'
 
-jupyter_width = '80%'
+jupyter_width = '100%'
 jupyter_height = 800
 df_topic_info = 'df_topic_info.csv'
 debug = True
@@ -86,7 +86,7 @@ if df_topic_info is not None:
 
     topic_info = df_topic_info
     if topic_info is not None:
-        topic_info = df_topic_info[aspects].applymap(eval).to_dict(orient='records')
+        topic_info = df_topic_info[aspects].map(eval).to_dict(orient='records')
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
@@ -163,20 +163,25 @@ def plot_topic_distr(value):
                 if title == 'Representative_Docs':
                     content = html.Div([html.P(c) for c in content],
                                         style={
-                                            "fontSize": 14,
-                                            "height": docs_height,
+                                            'fontSize': 14,
+                                            'height': docs_height,
                                             'overflow':'auto',
-                                            'line-height': line_height
+                                            'line-height': line_height,
+                                            'border': '1px solid #D5D8DC',
+                                            #'margin-left': '10px',
+                                            #'margin-right': '10px'
                                             })
+                    info = [html.Div(title, style={'color': '#ABB2B9', 'font-weight': 'bold'}), content]
                 else:
-                    content = html.Div(", ".join(content), style={'line-height': line_height})
+                    title = html.Span(f'{title}: ', style={'color': '#ABB2B9', 'font-weight': 'bold'})
+                    #info = html.Div(f'{title}: ' + ", ".join(content),
+                    #                style={'line-height': line_height})
+                    content = html.Span(", ".join(content))
+                    info = html.Div([title, content], style={'line-height': line_height})
 
                 #infos.append(html.Div([html.H6(title), content]))
                 #infos.append(html.Div([html.Div(title), content]))
-                infos.append(html.P([html.Div(title), content], 
-                                    #style={'margin': 1}
-                                    className="mb-1"
-                                    ))
+                infos.append(html.P(info, className="mb-2"))
                 #infos.append(create_card(title, content))
 
             infos = html.Div(infos, style={"height": fig.layout.height})
