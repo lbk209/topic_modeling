@@ -12,7 +12,6 @@ import argparse
 
 
 # Parsing command-line options and arguments
-"""
 parser = argparse.ArgumentParser()
 parser.add_argument("prfx", help="prefix of fig files")
 parser.add_argument("-d", "--directory", help="path to fig files", default=".")
@@ -30,9 +29,10 @@ jupyter_height = args.height
 df_topic_info = args.topic
 
 debug = False
-"""
+
 
 # testing
+"""
 fig_path = 'cabs2'
 fig_prfx = 'sdistr'
 pattern = r'\d+(?=\.json)'
@@ -41,12 +41,10 @@ jupyter_width = '80%'
 jupyter_height = 800
 df_topic_info = 'df_topic_info.csv'
 debug = True
-
-
+"""
 
 line_height = "150%"
 docs_height = "160px"
-
 
 # get json file list
 fig_files = [x for x in os.listdir(fig_path) if x.startswith(fig_prfx) and x.endswith('json')]
@@ -127,7 +125,7 @@ app.layout = dbc.Container(
 )
 def plot_topic_distr(files):
     """
-    value: list of str combining topic id and json file names to plot
+    files: list of json file names to plot
     """
     if not isinstance(files, list):
         files = [files]
@@ -141,7 +139,7 @@ def plot_topic_distr(files):
         if topic_info is None:
             row = dbc.Row(dbc.Col(g), className="mt-2")
         else:
-            tid = int(re.findall(pattern, f)[0])
+            tid = int(re.findall(pattern, f)[0]) # get topic id from file f
             infos = []
             for title, content in topic_info[tid].items():
                 title_s = html.Span(f'{title}: ', 
