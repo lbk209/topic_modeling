@@ -10,6 +10,10 @@ import argparse
 
 from bertopic_custom_util import read_csv
 
+import warnings
+import pandas as pd
+# Suppress FutureWarning messages
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Parsing command-line options and arguments
 parser = argparse.ArgumentParser()
