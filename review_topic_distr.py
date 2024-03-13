@@ -8,7 +8,7 @@ import io, re, os
 import base64
 import argparse
 
-#from bertopic_custom_util import read_csv
+from bertopic_custom_util import read_csv
 
 
 # Parsing command-line options and arguments
@@ -62,6 +62,7 @@ tids = [int(re.findall(pattern, x)[0]) for x in fig_files]
 options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, fig_files)]
 
 # import df_topic_info
+topic_info = None
 if df_topic_info is not None:
     # None if no file exists
     df_topic_info = read_csv(df_topic_info, path_data=fig_path)
@@ -70,13 +71,11 @@ if df_topic_info is not None:
         try:
             cols = df_topic_info.columns.to_list()
             aspects = cols[cols.index('Representation'):]
+            topic_info = df_topic_info[aspects].map(eval).to_dict(orient='records')
         except ValueError as e:
             print(f'ERROR: {e}')
-            df_topic_info = None
-
-    topic_info = df_topic_info
-    if topic_info is not None:
-        topic_info = df_topic_info[aspects].map(eval).to_dict(orient='records')
+            topic_info = None
+        
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
