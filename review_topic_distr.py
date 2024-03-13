@@ -71,7 +71,8 @@ if df_topic_info is not None:
         try:
             cols = df_topic_info.columns.to_list()
             aspects = cols[cols.index('Representation'):]
-            topic_info = df_topic_info[aspects].map(eval).to_dict(orient='records')
+            # New in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
+            topic_info = df_topic_info[aspects].applymap(eval).to_dict(orient='records')
         except ValueError as e:
             print(f'ERROR: {e}')
             topic_info = None
