@@ -43,6 +43,10 @@ df_topic_info = 'df_topic_info.csv'
 debug = True
 
 
+
+line_height = "150%"
+docs_height = "160px"
+
 def create_card(title, content):
     return dbc.Card(
         dbc.CardBody([
@@ -160,15 +164,19 @@ def plot_topic_distr(value):
                     content = html.Div([html.P(c) for c in content],
                                         style={
                                             "fontSize": 14,
-                                            "height": "120px",
-                                            'overflow':'auto'
+                                            "height": docs_height,
+                                            'overflow':'auto',
+                                            'line-height': line_height
                                             })
                 else:
-                    content = html.Div(", ".join(content))
+                    content = html.Div(", ".join(content), style={'line-height': line_height})
 
                 #infos.append(html.Div([html.H6(title), content]))
                 #infos.append(html.Div([html.Div(title), content]))
-                infos.append(html.P([html.Div(title), content]))
+                infos.append(html.P([html.Div(title), content], 
+                                    #style={'margin': 1}
+                                    className="mb-1"
+                                    ))
                 #infos.append(create_card(title, content))
 
             infos = html.Div(infos, style={"height": fig.layout.height})
