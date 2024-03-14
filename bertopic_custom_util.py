@@ -1287,14 +1287,6 @@ class multi_topics_stats():
         sentiment_color = dict(zip(sentiment_order, sentiment_color))
         category_orders = {'sentiment': sentiment_order}
 
-        if class_order_ascending is not None:
-            # now class_order_ascending is True or False
-            class_order = topic_stats_df.reset_index()[col_class].unique()
-            class_order = sorted(class_order, reverse=(not class_order_ascending))
-            category_orders.update({col_class: class_order})
-            # reorder topic_stats_df as well for color/opacity difference according to diff_significance_total
-            topic_stats_df = topic_stats_df.sort_values(by=col_class, key=lambda x: x.map({v: i for i, v in enumerate(class_order)}))
-
         # set plot options depending on sentiment
         if self.sentiment:
             showlegend = True
@@ -1377,6 +1369,13 @@ class multi_topics_stats():
                          #annotation_font_size=20,
                          annotation_font_color="gray",
                         )
+
+        if class_order_ascending is not None:
+            if class_order_ascending:
+                fig.update_yaxes(categoryorder='category ascending')
+            else:
+                fig.update_yaxes(categoryorder='category descending')
+                                     
         if not noshow:
             fig.show()
 
