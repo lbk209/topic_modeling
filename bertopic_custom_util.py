@@ -88,7 +88,7 @@ class utils():
         # for visualize_documents
         self.reduced_embeddings = reduced_embeddings
         self.docs = docs
-        self.count_visualize = 0
+        self.count_children = 0
 
 
     def _check_var(self, var_arg, var_self):
@@ -237,7 +237,7 @@ class utils():
         #labels = {k: '\n'.join([v[i:i+40] for i in range(0, len(v), 40)]) for k,v in labels.items()}
         self.topic_model.set_topic_labels(labels)
 
-        if self.count_visualize > 0:
+        if self.count_children > 0:
             print('WARNING: create the children instances again such as visualize.')
         #return topic_model
 
@@ -325,7 +325,7 @@ class utils():
         """
         create a instance of visualize class
         """
-        self.count_visualize += 1
+        self.count_children += 1
         if docs is None:
             docs = self.docs
         # return a instance of the class visualize
@@ -341,6 +341,8 @@ class utils():
         if docs is None:
             print('ERROR!: docs required for approximate_distribution')
             return
+            
+        self.count_children += 1
         topic_model = self.topic_model
 
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
@@ -353,6 +355,7 @@ class utils():
         """
         create a instance of multi_topics_sentiment class
         """
+        self.count_children += 1
         return multi_topics_sentiment(topic_model=self.topic_model,
                                       sentiment_analysis=sentiment_analysis,
                                       max_sequence_length=max_sequence_length)
