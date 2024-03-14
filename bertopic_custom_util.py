@@ -238,7 +238,7 @@ class utils():
         self.topic_model.set_topic_labels(labels)
 
         if self.count_visualize > 0:
-            print('WARNING: create the instance of visualize again.')
+            print('WARNING: create the children instances again such as visualize.')
         #return topic_model
 
 
