@@ -63,7 +63,12 @@ else:
 
 # create topic options (dicts of label and value) for dropdown menu
 tids = [int(re.findall(pattern, x)[0]) for x in fig_files]
-options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, fig_files)]
+#options = [{'label':f'Topic {t}', 'value': f} for t, f in zip(tids, fig_files)]
+options = [{'label':html.Span(f'Topic {t}', style={"padding-left": 10}),
+            'value': f}
+           for t, f in zip(tids, fig_files)]
+
+
 
 # import df_topic_info
 topic_info = None
@@ -80,7 +85,7 @@ if df_topic_info is not None:
         except ValueError as e:
             print(f'ERROR: {e}')
             topic_info = None
-        
+
 
 # Initialize the app - incorporate a Dash Bootstrap theme
 external_stylesheets = [dbc.themes.FLATLY]
@@ -88,17 +93,44 @@ external_stylesheets = [dbc.themes.FLATLY]
 
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
-title =  html.H4("Topic Distribution", className="text-primary")
+title = 'Topic Distribution'
+#title =  html.H4(title, className="text-primary")
 
-dropdown = dcc.Dropdown(options=options, value=options[0]['value'],
-                        id="topics", multi=True)
+dropdown = dbc.DropdownMenu(
+                        label = 'Topics',
+                        #align_end=True,
+                        children=[
+                            dbc.DropdownMenuItem([
+                                dcc.Checklist(
+                                    id='topics',
+                                    options=options,
+                                    value=[options[0]['value']],
+                                    #labelClassName='form-check-label',
+                                    #The style of the <label> that wraps the checkbox input and the option's label
+                                    #labelStyle= {'margin-left': '20px'}
+                                    ),
+                                ],
+                                #style = {'background-color': 'red'}
+                                #class_name='bg-light'
+                                toggle=False # set to False for multi checks
+                            ),
+                        ],
+                        in_navbar=True, nav=True,
+                        size="sm", color='secondary',
+                        #class_name = 'bg-light' # didn't work
+                        #style = {'background-color': 'red'} # color toggle not background of active item
+                    )
+#dropdown = html.Div(dropdown, style={"width": "50%"})
 
-buttons = dbc.Stack(
+
+children = dbc.Stack(
     [
+        dropdown,
         dbc.Button("Save", id='save-button',
                    color="secondary", className="btn btn-primary btn-sm"),
         dcc.Upload(dbc.Button("Load", color="secondary", className="btn btn-primary btn-sm"),
-                   id='load-topics')
+                   id='load-topics'),
+        dcc.Download(id="save-topics"),
 
     ],
     #className= "m-1",
@@ -106,16 +138,22 @@ buttons = dbc.Stack(
     gap=2
 )
 
+navbar = dbc.NavbarSimple(
+    brand= title,
+    children= children,
+    #dark= True,
+    fixed= 'top',
+    class_name= 'navbar navbar-expand-lg bg-light',
+    color= "primary",
+)
+
 # App layout
 app.layout = dbc.Container(
     [
-        dbc.Row(dbc.Col(title, lg=6)),
-        #dbc.Row([dbc.Col(dropdown, lg=6), dbc.Col(buttons)], align="center"),
-        #dbc.Row([dbc.Col(dropdown, width=480), dbc.Col(buttons)], align="center"),
-        dbc.Row([dbc.Col(dropdown), dbc.Col(buttons)], align="center"),
-        html.Div(id="graphs"),
-        #[dbc.Row(x) for x in html.Div(id="graphs")], # error
-        dcc.Download(id="save-topics"),
+        navbar,
+        html.Div(id="graphs",
+                 style={'margin-top': '55px'}
+                 ),
     ],
     className="dbc p-4",
     fluid=True,
@@ -146,8 +184,8 @@ def plot_topic_distr(files):
             tid = int(re.findall(pattern, f)[0]) # get topic id from file f
             infos = []
             for title, content in topic_info[tid].items():
-                title_s = html.Span(f'{title}: ', 
-                                    style={'color': '#ABB2B9', 
+                title_s = html.Span(f'{title}: ',
+                                    style={'color': '#ABB2B9',
                                            #'font-weight': 'bold'
                                           })
                 if title == 'Representative_Docs':
@@ -167,7 +205,7 @@ def plot_topic_distr(files):
                     info = html.Div([title_s, content], style={'line-height': line_height})
 
                 infos.append(html.P(info, className="mb-2"))
-                
+
             infos = html.Div(infos, style={"height": fig.layout.height})
             row = dbc.Row([dbc.Col(g), dbc.Col(infos)], className="mt-2")
 
@@ -221,8 +259,26 @@ def load_topics(contents, filename, date):
     return files, None
 
 
+def add_css(folder = 'assets', file = 'custom.css'):
+
+    content = """
+    .dropdown-item.active, .dropdown-item:active,
+    .dropdown-item.hover, .dropdown-item:hover {
+    background-color: white;
+    color: gray;
+    }
+    """
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    with open(f'{folder}/{file}', 'w') as f:
+        f.write(content)
+
+
 # Run the app
 if __name__ == '__main__':
+    add_css()
     app.run(debug=debug,
             jupyter_width=jupyter_width,
             jupyter_height=jupyter_height,
