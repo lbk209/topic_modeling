@@ -107,7 +107,8 @@ dropdown = dbc.DropdownMenu(
                                     value=[options[0]['value']],
                                     #labelClassName='form-check-label',
                                     #The style of the <label> that wraps the checkbox input and the option's label
-                                    #labelStyle= {'margin-left': '20px'}
+                                    #labelStyle= {'margin-left': '20px'},
+                                    style={"height":300, "overflow":"auto"}
                                     ),
                                 ],
                                 #style = {'background-color': 'red'}
