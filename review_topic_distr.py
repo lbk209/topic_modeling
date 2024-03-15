@@ -190,13 +190,14 @@ def plot_topic_distr(files):
                                            #'font-weight': 'bold'
                                           })
                 if title == 'Representative_Docs':
-                    content = html.Div([html.P(c) for c in content],
+                    content = html.Div([html.P(c, style={'margin': 5}) for c in content],
                                         style={
                                             'fontSize': 14,
                                             'height': docs_height,
                                             'overflow':'auto',
                                             'line-height': line_height,
                                             'border': '1px solid #D5D8DC',
+                                            'line-height': '120%'
                                             #'margin-left': '10px',
                                             #'margin-right': '10px'
                                             })
