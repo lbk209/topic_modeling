@@ -97,30 +97,32 @@ title = 'Topic Distribution'
 #title =  html.H4(title, className="text-primary")
 
 dropdown = dbc.DropdownMenu(
-                        label = 'Topics',
-                        #align_end=True,
-                        children=[
-                            dbc.DropdownMenuItem([
-                                dcc.Checklist(
-                                    id='topics',
-                                    options=options,
-                                    value=[options[0]['value']],
-                                    #labelClassName='form-check-label',
-                                    #The style of the <label> that wraps the checkbox input and the option's label
-                                    #labelStyle= {'margin-left': '20px'},
-                                    style={"height":300, "overflow":"auto"}
-                                    ),
-                                ],
-                                #style = {'background-color': 'red'}
-                                #class_name='bg-light'
-                                toggle=False # set to False for multi checks
-                            ),
-                        ],
-                        in_navbar=True, nav=True,
-                        size="sm", color='secondary',
-                        #class_name = 'bg-light' # didn't work
-                        #style = {'background-color': 'red'} # color toggle not background of active item
-                    )
+    label = 'Topics',
+    #align_end=True,
+    children=[
+        dbc.DropdownMenuItem(dbc.Button('Uncheck All', id='uncheck_all', className='btn btn-info disabled btn-sm'),
+                             toggle=False,),
+        #dbc.DropdownMenuItem(divider=True),
+        dbc.DropdownMenuItem(
+            dcc.Checklist(
+                id='topics',
+                options=options,
+                value=[options[0]['value']],
+                #labelClassName='form-check-label',
+                #The style of the <label> that wraps the checkbox input and the option's label
+                #labelStyle= {'margin-left': '20px'},
+                style={"height":300, "overflow":"auto"}
+            ),
+            #style = {'background-color': 'red'}
+            #class_name='bg-light'
+            toggle=False # set to False for multi checks
+        ),
+    ],
+    in_navbar=True, nav=True,
+    size="sm", color='secondary',
+    #class_name = 'bg-light' # didn't work
+    #style = {'background-color': 'red'} # color toggle not background of active item
+)
 #dropdown = html.Div(dropdown, style={"width": "50%"})
 
 
@@ -264,8 +266,8 @@ def load_topics(contents, filename, date):
 def add_css(folder = 'assets', file = 'custom.css'):
 
     content = """
-    .dropdown-item.active, .dropdown-item:active,
-    .dropdown-item.hover, .dropdown-item:hover {
+    .dropdown-item:active, 
+    .dropdown-item:hover {
     background-color: white;
     color: gray;
     }
