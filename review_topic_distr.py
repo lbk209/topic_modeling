@@ -100,7 +100,11 @@ dropdown = dbc.DropdownMenu(
     label = 'Topics',
     #align_end=True,
     children=[
-        dbc.DropdownMenuItem(dbc.Button('Uncheck All', id='uncheck_all', className='btn btn-info disabled btn-sm'),
+        dbc.DropdownMenuItem(dbc.Button('Uncheck All', id='uncheck_all', 
+                                        n_clicks=0,
+                                        # disabled will make it not work
+                                        #className='btn btn-info disabled btn-sm'
+                                        className='btn btn-info btn-sm'),
                              toggle=False,),
         #dbc.DropdownMenuItem(divider=True),
         dbc.DropdownMenuItem(
@@ -165,8 +169,8 @@ app.layout = dbc.Container(
 
 # Add controls to build the interaction
 @callback(
-    Output(component_id="graphs", component_property="children"),
-    Input(component_id='topics', component_property='value')
+    Output(component_id='graphs', component_property='children'),
+    Input(component_id='topics', component_property='value'),
 )
 def plot_topic_distr(files):
     """
@@ -219,7 +223,7 @@ def plot_topic_distr(files):
 
 
 @callback(
-    Output("save-topics", "data"),
+    Output('save-topics', 'data'),
     Input('save-button', 'n_clicks'),
     State('topics', 'value'),
     prevent_initial_call=True
@@ -242,8 +246,17 @@ def save_topics(n_clicks, files):
     return dict(content=f'{content}', filename=filename)
 
 
-@callback([Output(component_id="topics", component_property="value"),
-          Output('load-topics', 'contents')],
+@callback(
+    Output(component_id='topics', component_property='value', allow_duplicate=True),
+    Input(component_id='uncheck_all', component_property='n_clicks'),
+    prevent_initial_call=True
+)
+def uncheck_all_topics(n_clicks):
+    return []
+
+
+@callback(Output(component_id='topics', component_property='value'),
+          Output('load-topics', 'contents'),
           Input('load-topics', 'contents'),
           State('load-topics', 'filename'),
           State('load-topics', 'last_modified'),
@@ -266,7 +279,7 @@ def load_topics(contents, filename, date):
 def add_css(folder = 'assets', file = 'custom.css'):
 
     content = """
-    .dropdown-item:active, 
+    .dropdown-item:active,
     .dropdown-item:hover {
     background-color: white;
     color: gray;
