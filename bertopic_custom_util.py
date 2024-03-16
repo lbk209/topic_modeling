@@ -254,8 +254,10 @@ class utils():
 
         if custom_labels:
             list_labels = topic_model.custom_labels_
+            sep = ' '
         else:
             list_labels = topic_model.topic_labels_.values()
+            sep = '_'
 
         dist_df = pd.DataFrame(distance_matrix, columns=list_labels, index=list_labels)
 
@@ -290,6 +292,9 @@ class utils():
                                              .apply(lambda x: pytorch_cos_sim(encode(x.topic1), encode(x.topic2))[0][0].item(), axis=1)
                                              .rename('c/label sim')
                                              , how='right')
+
+        # add each topic pair as a set for convenient indexing
+        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split(sep)[0]) for i in range(2)), axis=1)
         return pair_dist_df
 
 
