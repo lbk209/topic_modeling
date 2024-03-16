@@ -97,30 +97,36 @@ title = 'Topic Distribution'
 #title =  html.H4(title, className="text-primary")
 
 dropdown = dbc.DropdownMenu(
-                        label = 'Topics',
-                        #align_end=True,
-                        children=[
-                            dbc.DropdownMenuItem([
-                                dcc.Checklist(
-                                    id='topics',
-                                    options=options,
-                                    value=[options[0]['value']],
-                                    #labelClassName='form-check-label',
-                                    #The style of the <label> that wraps the checkbox input and the option's label
-                                    #labelStyle= {'margin-left': '20px'},
-                                    style={"height":300, "overflow":"auto"}
-                                    ),
-                                ],
-                                #style = {'background-color': 'red'}
-                                #class_name='bg-light'
-                                toggle=False # set to False for multi checks
-                            ),
-                        ],
-                        in_navbar=True, nav=True,
-                        size="sm", color='secondary',
-                        #class_name = 'bg-light' # didn't work
-                        #style = {'background-color': 'red'} # color toggle not background of active item
-                    )
+    label = 'Topics',
+    #align_end=True,
+    children=[
+        dbc.DropdownMenuItem(dbc.Button('Uncheck All', id='uncheck_all', 
+                                        n_clicks=0,
+                                        # disabled will make it not work
+                                        #className='btn btn-info disabled btn-sm'
+                                        className='btn btn-info btn-sm'),
+                             toggle=False,),
+        #dbc.DropdownMenuItem(divider=True),
+        dbc.DropdownMenuItem(
+            dcc.Checklist(
+                id='topics',
+                options=options,
+                value=[options[0]['value']],
+                #labelClassName='form-check-label',
+                #The style of the <label> that wraps the checkbox input and the option's label
+                #labelStyle= {'margin-left': '20px'},
+                style={"height":300, "overflow":"auto"}
+            ),
+            #style = {'background-color': 'red'}
+            #class_name='bg-light'
+            toggle=False # set to False for multi checks
+        ),
+    ],
+    in_navbar=True, nav=True,
+    size="sm", color='secondary',
+    #class_name = 'bg-light' # didn't work
+    #style = {'background-color': 'red'} # color toggle not background of active item
+)
 #dropdown = html.Div(dropdown, style={"width": "50%"})
 
 
@@ -163,8 +169,8 @@ app.layout = dbc.Container(
 
 # Add controls to build the interaction
 @callback(
-    Output(component_id="graphs", component_property="children"),
-    Input(component_id='topics', component_property='value')
+    Output(component_id='graphs', component_property='children'),
+    Input(component_id='topics', component_property='value'),
 )
 def plot_topic_distr(files):
     """
@@ -217,7 +223,7 @@ def plot_topic_distr(files):
 
 
 @callback(
-    Output("save-topics", "data"),
+    Output('save-topics', 'data'),
     Input('save-button', 'n_clicks'),
     State('topics', 'value'),
     prevent_initial_call=True
@@ -240,8 +246,17 @@ def save_topics(n_clicks, files):
     return dict(content=f'{content}', filename=filename)
 
 
-@callback([Output(component_id="topics", component_property="value"),
-          Output('load-topics', 'contents')],
+@callback(
+    Output(component_id='topics', component_property='value', allow_duplicate=True),
+    Input(component_id='uncheck_all', component_property='n_clicks'),
+    prevent_initial_call=True
+)
+def uncheck_all_topics(n_clicks):
+    return []
+
+
+@callback(Output(component_id='topics', component_property='value'),
+          Output('load-topics', 'contents'),
           Input('load-topics', 'contents'),
           State('load-topics', 'filename'),
           State('load-topics', 'last_modified'),
@@ -264,8 +279,8 @@ def load_topics(contents, filename, date):
 def add_css(folder = 'assets', file = 'custom.css'):
 
     content = """
-    .dropdown-item.active, .dropdown-item:active,
-    .dropdown-item.hover, .dropdown-item:hover {
+    .dropdown-item:active,
+    .dropdown-item:hover {
     background-color: white;
     color: gray;
     }
