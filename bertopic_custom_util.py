@@ -1310,6 +1310,7 @@ class multi_topics_stats():
             showlegend = True
             color = 'sentiment' # select legend
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9}
+            text_auto = False
             bar_label = 'sentiment_share'
         else:
             showlegend = False
@@ -1318,7 +1319,8 @@ class multi_topics_stats():
                                   topic_stats_df.diff_significance_total))
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9,
                             'marker_color': diff_colors, 'marker_line_color': diff_colors}
-            bar_label = f'topic_{col_class}_share'
+            text_auto = '.1f'
+            bar_label = None
 
 
         df_plot = topic_stats_df.reset_index()
@@ -1356,7 +1358,7 @@ class multi_topics_stats():
                      category_orders = category_orders,
                      color_discrete_map = sentiment_color,
                      barmode=barmode,
-                     #text_auto = '.0f %',
+                     text_auto = text_auto,
                      text = bar_label,
                      labels = {f'topic_{col_class}_share': f'{ylabel}, %'},
                      hover_data=['diff_significance_total'],
