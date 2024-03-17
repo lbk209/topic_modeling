@@ -20,6 +20,7 @@ from statsmodels.stats.proportion import proportions_ztest
 
 SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
 
+
 def read_csv(file, path_data, cols_eval=None, **kwargs):
     """
     kwargs: keyword args for pd.read_csv
@@ -1463,8 +1464,17 @@ class multi_topics_stats():
 
 class multi_topics_sentiment():
     def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None, max_sequence_length=2000):
+        """
+        sentiment_analysis: set to 'random' for debugging purpose
+        """
         self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
-        self.sentiment_analysis = sentiment_analysis
+        if sentiment_analysis == 'random':
+            self.sentiment_analysis = lambda sent_list: [{
+                'label': np.random.choice(SENTIMENT_LABELS, 1)[0], 
+                'score': 1.0
+                } for x in range(len(sent_list))]
+        else:
+            self.sentiment_analysis = sentiment_analysis
         self.max_sequence_length = max_sequence_length
 
         self.tokenizer = tokenizer
@@ -1576,9 +1586,7 @@ class multi_topics_sentiment():
                         max_sequence_length=2000):
         senti = {}
         for topic, subs in topic_subsentences.items():
-            res = sentiment_analysis([x[:max_sequence_length] for x in subs],
-                                     # return max score only
-                                     return_all_scores=False)
+            res = sentiment_analysis([x[:max_sequence_length] for x in subs])
             scores = []
             for x in res:
                 label = x["label"]
