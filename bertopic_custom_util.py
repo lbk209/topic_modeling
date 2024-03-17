@@ -1210,6 +1210,13 @@ class multi_topics_stats():
             multi_topics_stats_df[f'topic_{col_class}_share'] - multi_topics_stats_df[f'topic_other_{col_class}s_share'],
             multi_topics_stats_df['sign_difference']
         ))
+
+        if sentiment: # create text label for sentiment share of each class
+            df_tmp = multi_topics_stats_df.groupby([col_class, 'topic_id'])[f'topic_{col_class}_share'].sum().rename('sentiment_share').reset_index()
+            df_tmp['sentiment_share'] = df_tmp[f'topic_{col_class}_share'] / df_tmp['sentiment_share']
+            df_tmp['sentiment_share'] = df_tmp['sentiment_share'].apply(lambda x: f'{x:.0%}')
+            multi_topics_stats_df = pd.merge(multi_topics_stats_df, df_tmp, on=[col_class, 'topic_id'], how='left')
+                                      
         print('stats for visualize_class_by_topic created.')
 
         #return multi_topics_stats_df
@@ -1300,6 +1307,7 @@ class multi_topics_stats():
             showlegend = True
             color = 'sentiment' # select legend
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9}
+            bar_label = 'sentiment_share'
         else:
             showlegend = False
             color = None
@@ -1307,6 +1315,7 @@ class multi_topics_stats():
                                   topic_stats_df.diff_significance_total))
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9,
                             'marker_color': diff_colors, 'marker_line_color': diff_colors}
+            bar_label = f'topic_{col_class}_share'
 
 
         df_plot = topic_stats_df.reset_index()
@@ -1344,7 +1353,8 @@ class multi_topics_stats():
                      category_orders = category_orders,
                      color_discrete_map = sentiment_color,
                      barmode=barmode,
-                     text_auto = '.1f',
+                     #text_auto = '.0f %',
+                     text = bar_label,
                      labels = {f'topic_{col_class}_share': f'{ylabel}, %'},
                      hover_data=['diff_significance_total'],
                      width=width, height=height)
