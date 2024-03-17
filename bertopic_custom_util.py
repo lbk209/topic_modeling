@@ -2,7 +2,7 @@ import collections
 import os, re
 import pandas as pd
 import numpy as np
-import tqdm
+from tqdm import tqdm
 
 from typing import List, Union
 
@@ -857,7 +857,7 @@ class multi_topics_stats():
         topic_distr = self.topic_distr
 
         tmp_dfs = []
-        for thr in tqdm.tqdm(np.arange(0, max_threshhold, 0.001), leave=False):
+        for thr in tqdm(np.arange(0, max_threshhold, 0.001), leave=False):
             #tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y >= thr, x))), topic_distr))).rename(
             tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y > thr, x))), topic_distr))).rename(
                 columns = {0: 'num_topics'}
@@ -998,7 +998,7 @@ class multi_topics_stats():
         # ex) [[positive], [positive, negative], ...]
         # sentiment_func: get a doc and return a list of sentiment labels for topics of subsentence in the doc
         subs_senti = list()
-        for i, doc in tqdm.tqdm(enumerate(docs), desc='Sentiment analysis', total=len(docs)):
+        for i, doc in tqdm(enumerate(docs), desc='Sentiment analysis', total=len(docs)):
             tids = multi_topics_list[i]
 
             if len(tids) == 0:
