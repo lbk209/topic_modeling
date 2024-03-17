@@ -1213,9 +1213,10 @@ class multi_topics_stats():
 
         if sentiment: # create text label for sentiment share of each class
             df_tmp = multi_topics_stats_df.groupby([col_class, 'topic_id'])[f'topic_{col_class}_share'].sum().rename('sentiment_share').reset_index()
-            df_tmp['sentiment_share'] = df_tmp[f'topic_{col_class}_share'] / df_tmp['sentiment_share']
-            df_tmp['sentiment_share'] = df_tmp['sentiment_share'].apply(lambda x: f'{x:.0%}')
             multi_topics_stats_df = pd.merge(multi_topics_stats_df, df_tmp, on=[col_class, 'topic_id'], how='left')
+            multi_topics_stats_df['sentiment_share'] = (multi_topics_stats_df[f'topic_{col_class}_share']
+                                                        .div(multi_topics_stats_df['sentiment_share'])
+                                                        .apply(lambda x: f'{x:.0%}'))
                                       
         print('stats for visualize_class_by_topic created.')
 
