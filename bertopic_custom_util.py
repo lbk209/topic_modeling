@@ -2,7 +2,7 @@ import collections
 import os, re
 import pandas as pd
 import numpy as np
-import tqdm
+from tqdm import tqdm
 
 from typing import List, Union
 
@@ -17,6 +17,8 @@ import plotly.io as pio
 
 from itertools import combinations
 from statsmodels.stats.proportion import proportions_ztest
+
+SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
 
 
 def read_csv(file, path_data, cols_eval=None, **kwargs):
@@ -856,7 +858,7 @@ class multi_topics_stats():
         topic_distr = self.topic_distr
 
         tmp_dfs = []
-        for thr in tqdm.tqdm(np.arange(0, max_threshhold, 0.001), leave=False):
+        for thr in tqdm(np.arange(0, max_threshhold, 0.001), leave=False):
             #tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y >= thr, x))), topic_distr))).rename(
             tmp_df = pd.DataFrame(list(map(lambda x: len(list(filter(lambda y: y > thr, x))), topic_distr))).rename(
                 columns = {0: 'num_topics'}
@@ -997,7 +999,7 @@ class multi_topics_stats():
         # ex) [[positive], [positive, negative], ...]
         # sentiment_func: get a doc and return a list of sentiment labels for topics of subsentence in the doc
         subs_senti = list()
-        for i, doc in tqdm.tqdm(enumerate(docs), desc='Sentiment analysis', total=len(docs)):
+        for i, doc in tqdm(enumerate(docs), desc='Sentiment analysis', total=len(docs)):
             tids = multi_topics_list[i]
 
             if len(tids) == 0:
@@ -1210,6 +1212,14 @@ class multi_topics_stats():
             multi_topics_stats_df[f'topic_{col_class}_share'] - multi_topics_stats_df[f'topic_other_{col_class}s_share'],
             multi_topics_stats_df['sign_difference']
         ))
+
+        if sentiment: # create text label for sentiment share of each class
+            df_tmp = multi_topics_stats_df.groupby([col_class, 'topic_id'])[f'topic_{col_class}_share'].sum().rename('sentiment_share').reset_index()
+            multi_topics_stats_df = pd.merge(multi_topics_stats_df, df_tmp, on=[col_class, 'topic_id'], how='left')
+            multi_topics_stats_df['sentiment_share'] = (multi_topics_stats_df[f'topic_{col_class}_share']
+                                                        .div(multi_topics_stats_df['sentiment_share'])
+                                                        .apply(lambda x: f'{x:.0%}'))
+                                      
         print('stats for visualize_class_by_topic created.')
 
         #return multi_topics_stats_df
@@ -1247,7 +1257,7 @@ class multi_topics_stats():
     def visualize_class_by_topic(self, topic, df_topic_info=None,
                                  width=700, height=60, ylabel='share of reviews',
                                  title_length=60, barmode='stack',
-                                 sentiment_order = ['positive', 'neutral', 'negative'],
+                                 sentiment_order = SENTIMENT_LABELS,
                                  sentiment_color = [color_qual.Plotly[x] for x in [0,7,1]],
                                  class_order_ascending = None,
                                  aspect=None,
@@ -1300,6 +1310,8 @@ class multi_topics_stats():
             showlegend = True
             color = 'sentiment' # select legend
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9}
+            text_auto = False
+            bar_label = 'sentiment_share'
         else:
             showlegend = False
             color = None
@@ -1307,6 +1319,8 @@ class multi_topics_stats():
                                   topic_stats_df.diff_significance_total))
             kw_up_traces = {'marker_line_width': 1.5, 'opacity': 0.9,
                             'marker_color': diff_colors, 'marker_line_color': diff_colors}
+            text_auto = '.1f'
+            bar_label = None
 
 
         df_plot = topic_stats_df.reset_index()
@@ -1344,7 +1358,8 @@ class multi_topics_stats():
                      category_orders = category_orders,
                      color_discrete_map = sentiment_color,
                      barmode=barmode,
-                     text_auto = '.1f',
+                     text_auto = text_auto,
+                     text = bar_label,
                      labels = {f'topic_{col_class}_share': f'{ylabel}, %'},
                      hover_data=['diff_significance_total'],
                      width=width, height=height)
@@ -1451,8 +1466,17 @@ class multi_topics_stats():
 
 class multi_topics_sentiment():
     def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None, max_sequence_length=2000):
+        """
+        sentiment_analysis: set to 'random' for debugging purpose
+        """
         self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
-        self.sentiment_analysis = sentiment_analysis
+        if sentiment_analysis == 'random':
+            self.sentiment_analysis = lambda sent_list: [{
+                'label': np.random.choice(SENTIMENT_LABELS, 1)[0], 
+                'score': 1.0
+                } for x in range(len(sent_list))]
+        else:
+            self.sentiment_analysis = sentiment_analysis
         self.max_sequence_length = max_sequence_length
 
         self.tokenizer = tokenizer
@@ -1564,9 +1588,7 @@ class multi_topics_sentiment():
                         max_sequence_length=2000):
         senti = {}
         for topic, subs in topic_subsentences.items():
-            res = sentiment_analysis([x[:max_sequence_length] for x in subs],
-                                     # return max score only
-                                     return_all_scores=False)
+            res = sentiment_analysis([x[:max_sequence_length] for x in subs])
             scores = []
             for x in res:
                 label = x["label"]
