@@ -18,6 +18,7 @@ import plotly.io as pio
 from itertools import combinations
 from statsmodels.stats.proportion import proportions_ztest
 
+SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
 
 def read_csv(file, path_data, cols_eval=None, **kwargs):
     """
@@ -1255,7 +1256,7 @@ class multi_topics_stats():
     def visualize_class_by_topic(self, topic, df_topic_info=None,
                                  width=700, height=60, ylabel='share of reviews',
                                  title_length=60, barmode='stack',
-                                 sentiment_order = ['positive', 'neutral', 'negative'],
+                                 sentiment_order = SENTIMENT_LABELS,
                                  sentiment_color = [color_qual.Plotly[x] for x in [0,7,1]],
                                  class_order_ascending = None,
                                  aspect=None,
