@@ -27,13 +27,10 @@ def read_csv(file, path_data, cols_eval=None, **kwargs):
 
     if len(files) == 0:
         print('ERROR!: No csv to read')
-        return None
 
     if cols_eval is None:
         converters=None
     else:
-        if not isinstance(cols_eval, list):
-            cols_eval = [cols_eval]
         converters= {c: lambda x: eval(x) for c in cols_eval}
 
     df_reviews = pd.DataFrame()
@@ -88,7 +85,7 @@ class utils():
         # for visualize_documents
         self.reduced_embeddings = reduced_embeddings
         self.docs = docs
-        self.count_children = 0
+        self.count_visualize = 0
 
 
     def _check_var(self, var_arg, var_self):
@@ -237,8 +234,8 @@ class utils():
         #labels = {k: '\n'.join([v[i:i+40] for i in range(0, len(v), 40)]) for k,v in labels.items()}
         self.topic_model.set_topic_labels(labels)
 
-        if self.count_children > 0:
-            print('WARNING: create the children instances again such as visualize.')
+        if self.count_visualize > 0:
+            print('WARNING: create the instance of visualize again.')
         #return topic_model
 
 
@@ -254,10 +251,8 @@ class utils():
 
         if custom_labels:
             list_labels = topic_model.custom_labels_
-            sep = ' '
         else:
             list_labels = topic_model.topic_labels_.values()
-            sep = '_'
 
         dist_df = pd.DataFrame(distance_matrix, columns=list_labels, index=list_labels)
 
@@ -292,9 +287,6 @@ class utils():
                                              .apply(lambda x: pytorch_cos_sim(encode(x.topic1), encode(x.topic2))[0][0].item(), axis=1)
                                              .rename('c/label sim')
                                              , how='right')
-
-        # add each topic pair as a set for convenient indexing
-        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split(sep)[0]) for i in range(2)), axis=1)
         return pair_dist_df
 
 
@@ -330,7 +322,7 @@ class utils():
         """
         create a instance of visualize class
         """
-        self.count_children += 1
+        self.count_visualize += 1
         if docs is None:
             docs = self.docs
         # return a instance of the class visualize
@@ -346,8 +338,6 @@ class utils():
         if docs is None:
             print('ERROR!: docs required for approximate_distribution')
             return
-            
-        self.count_children += 1
         topic_model = self.topic_model
 
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
@@ -360,7 +350,6 @@ class utils():
         """
         create a instance of multi_topics_sentiment class
         """
-        self.count_children += 1
         return multi_topics_sentiment(topic_model=self.topic_model,
                                       sentiment_analysis=sentiment_analysis,
                                       max_sequence_length=max_sequence_length)
@@ -1295,6 +1284,14 @@ class multi_topics_stats():
         sentiment_color = dict(zip(sentiment_order, sentiment_color))
         category_orders = {'sentiment': sentiment_order}
 
+        if class_order_ascending is not None:
+            # now class_order_ascending is True or False
+            class_order = topic_stats_df.reset_index()[col_class].unique()
+            class_order = sorted(class_order, reverse=(not class_order_ascending))
+            category_orders.update({col_class: class_order})
+            # reorder topic_stats_df as well for color/opacity difference according to diff_significance_total
+            topic_stats_df = topic_stats_df.sort_values(by=col_class, key=lambda x: x.map({v: i for i, v in enumerate(class_order)}))
+
         # set plot options depending on sentiment
         if self.sentiment:
             showlegend = True
@@ -1377,13 +1374,6 @@ class multi_topics_stats():
                          #annotation_font_size=20,
                          annotation_font_color="gray",
                         )
-
-        if class_order_ascending is not None:
-            if class_order_ascending:
-                fig.update_yaxes(categoryorder='category ascending')
-            else:
-                fig.update_yaxes(categoryorder='category descending')
-                                     
         if not noshow:
             fig.show()
 

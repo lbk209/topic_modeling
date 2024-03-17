@@ -4,7 +4,7 @@ from bertopic.representation import KeyBERTInspired
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 
-from bertopic_custom_util import utils
+#from bertopic_custom_util import utils
 
 
 def bertopic_batch(docs,
@@ -16,6 +16,7 @@ def bertopic_batch(docs,
                    min_dist=0.1, # UMAP
                    min_cluster_size=10,
                    min_samples=None, # HDBSCAN
+                   top_n_words=10,
                    ####
                    embedding_model=None,
                    embeddings=None,
@@ -25,7 +26,6 @@ def bertopic_batch(docs,
                    ngram_range=(1, 3),
                    prediction_data=True,
                    gen_min_span_tree=True,
-                   top_n_words=10,
                    calculate_probabilities=False,
                    random_state=42,
                    verbose=False,
