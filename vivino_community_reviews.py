@@ -264,4 +264,13 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
 
     return df
 
-   
+
+def check_duplicated(df, cols=['wine','date','review'], drop=False):
+    """
+    check or drop duplicated reviews
+    """
+    if drop:
+        df = df.drop_duplicates(cols)
+    else:
+        df = df.loc[df.duplicated(cols, keep=False)].sort_values(cols)
+    return df
