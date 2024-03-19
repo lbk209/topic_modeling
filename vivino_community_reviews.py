@@ -265,6 +265,24 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
     return df
 
 
+def check_wine(wine, wine_list, st_id='all-MiniLM-L6-v2', print_result=True):
+    """
+    check if wine is in wine_list.
+    return the index of wine of max score in wine_list
+    """
+    model = SentenceTransformer(st_id)
+    encode = lambda x: model.encode(x, convert_to_tensor=True)
+    
+    e_w = encode(wine)
+    csims = [util.pytorch_cos_sim(e_w, encode(x)) for x in wine_list]
+    mc = max(csims).item()
+    idx = csims.index(mc)
+    wine2 = wine_list[idx]
+    if print_result:
+        print(f'{wine}: score {mc:.2f} with {wine2}')
+    return [idx, mc]
+
+
 def check_duplicated(df, cols=['wine','date','review'], drop=False):
     """
     check or drop duplicated reviews
