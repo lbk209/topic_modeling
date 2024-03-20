@@ -244,7 +244,7 @@ class utils():
         #return topic_model
 
 
-    def check_similarity(self, custom_labels=False,
+    def check_similarity(self, aspect=None,
                          embedding_model=None, min_distance=0.8,
                          pytorch_cos_sim=None):
 
@@ -254,13 +254,16 @@ class utils():
         topic_model = self.topic_model
         distance_matrix = cosine_similarity(np.array(topic_model.topic_embeddings_))
 
-        if custom_labels:
-            list_labels = topic_model.custom_labels_
-            sep = ' '
-        else:
-            list_labels = topic_model.topic_labels_.values()
-            sep = '_'
-
+        # CustomName not supported but you can use its representation name instead
+        if aspect == 'CustomName': 
+            aspect = None
+        aspect = self._check_aspect(aspect)
+        if aspect is None:
+            return None
+        
+        list_labels = topic_model.get_topic_info().set_index('Topic')[aspect].to_dict()
+        list_labels = [f'{k}_{"_".join(v)}' for k,v in list_labels.items()]
+        
         dist_df = pd.DataFrame(distance_matrix, columns=list_labels, index=list_labels)
 
         tmp = []
@@ -287,16 +290,17 @@ class utils():
                 .reset_index(drop=True))
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
-            print(f'Calculating the similarity of custom label pairs for which the topic similarity exceeds {min_distance}...')
-            encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
+            print(f'Calculating the similarity of label pairs for which the topic similarity exceeds {min_distance}...')
+            dropt = lambda p: ', '.join(p.split('_')[1:])
+            encode = lambda x: embedding_model.encode(dropt(x), convert_to_tensor=True)
             pair_dist_df = pair_dist_df.join(pair_dist_df
                                              .loc[pair_dist_df.distance >= min_distance]
                                              .apply(lambda x: pytorch_cos_sim(encode(x.topic1), encode(x.topic2))[0][0].item(), axis=1)
-                                             .rename('c/label sim')
+                                             .rename('label similarity')
                                              , how='right')
 
         # add each topic pair as a set for convenient indexing
-        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split(sep)[0]) for i in range(2)), axis=1)
+        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split('_')[0]) for i in range(2)), axis=1)
         return pair_dist_df
 
 
