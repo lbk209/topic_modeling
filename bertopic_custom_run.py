@@ -60,7 +60,7 @@ def bertopic_batch(docs,
             gen_min_span_tree=gen_min_span_tree
             )
 
-    keybert = KeyBERTInspired()
+    keybert = KeyBERTInspired(top_n_words=top_n_words)
     #main_repr = {"Main": keybert}
     main_repr = {"KeyBERT": keybert}
     if representation_model is None:
