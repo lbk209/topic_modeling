@@ -20,7 +20,6 @@ from statsmodels.stats.proportion import proportions_ztest
 
 SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
 
-
 def read_csv(file, path_data, cols_eval=None, **kwargs):
     """
     kwargs: keyword args for pd.read_csv
@@ -348,7 +347,7 @@ class utils():
         if docs is None:
             print('ERROR!: docs required for approximate_distribution')
             return
-            
+
         self.count_children += 1
         topic_model = self.topic_model
 
@@ -1219,7 +1218,7 @@ class multi_topics_stats():
             multi_topics_stats_df['sentiment_share'] = (multi_topics_stats_df[f'topic_{col_class}_share']
                                                         .div(multi_topics_stats_df['sentiment_share'])
                                                         .apply(lambda x: f'{x:.0%}'))
-                                      
+
         print('stats for visualize_class_by_topic created.')
 
         #return multi_topics_stats_df
@@ -1398,7 +1397,7 @@ class multi_topics_stats():
                 fig.update_yaxes(categoryorder='category ascending')
             else:
                 fig.update_yaxes(categoryorder='category descending')
-                                     
+
         if not noshow:
             fig.show()
 
@@ -1472,7 +1471,7 @@ class multi_topics_sentiment():
         self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
         if sentiment_analysis == 'random':
             self.sentiment_analysis = lambda sent_list: [{
-                'label': np.random.choice(SENTIMENT_LABELS, 1)[0], 
+                'label': np.random.choice(SENTIMENT_LABELS, 1)[0],
                 'score': 1.0
                 } for x in range(len(sent_list))]
         else:

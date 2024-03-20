@@ -4,7 +4,7 @@ from bertopic.representation import KeyBERTInspired
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 
-from bertopic_custom_util import utils
+#from bertopic_custom_util import utils
 
 
 def bertopic_batch(docs,
@@ -60,7 +60,7 @@ def bertopic_batch(docs,
             gen_min_span_tree=gen_min_span_tree
             )
 
-    keybert = KeyBERTInspired(top_n_words=top_n_words)
+    keybert = KeyBERTInspired()
     #main_repr = {"Main": keybert}
     main_repr = {"KeyBERT": keybert}
     if representation_model is None:
