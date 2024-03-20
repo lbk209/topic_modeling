@@ -263,7 +263,6 @@ class utils():
         
         list_labels = topic_model.get_topic_info().set_index('Topic')[aspect].to_dict()
         list_labels = [f'{k}_{"_".join(v)}' for k,v in list_labels.items()]
-        sep = '_'
         
         dist_df = pd.DataFrame(distance_matrix, columns=list_labels, index=list_labels)
 
@@ -301,7 +300,7 @@ class utils():
                                              , how='right')
 
         # add each topic pair as a set for convenient indexing
-        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split(sep)[0]) for i in range(2)), axis=1)
+        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split('_')[0]) for i in range(2)), axis=1)
         return pair_dist_df
 
 
