@@ -87,6 +87,20 @@ def check_topic_aspect(df_topic_info, aspect, aspect_default='Representation', s
     return aspect
 
 
+def import_topic_seeds(file):
+    """
+    file: text file of seed topics where each topic seperated by line feed (\n) and
+     a blank line will be ignored.
+    """
+    with open(file, 'r') as f:
+        seeds = f.read()
+    
+    seeds = [x.split(',') for x in seeds.split('\n')]
+    seeds = [[x.strip( ) for x in topic if x != ''] for topic in seeds]
+    seeds = [x for x in seeds if len(x) > 0]
+    return seeds
+
+
 class utils():
     def __init__(self, topic_model, reduced_embeddings=None, docs=None):
         self.topic_model = topic_model
