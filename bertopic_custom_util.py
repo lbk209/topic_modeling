@@ -18,6 +18,9 @@ import plotly.io as pio
 from itertools import combinations
 from statsmodels.stats.proportion import proportions_ztest
 
+import statsmodels.api as smapi
+import itertools
+
 SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
 
 
@@ -244,10 +247,7 @@ class utils():
         #return topic_model
 
 
-    def check_similarity(self, aspect=None,
-                         embedding_model=None, min_distance=0.8,
-                         pytorch_cos_sim=None):
-
+    def calc_topic_similarity(self, aspect=None):
         """
         pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim
         """
@@ -255,16 +255,15 @@ class utils():
         distance_matrix = cosine_similarity(np.array(topic_model.topic_embeddings_))
 
         # CustomName not supported but you can use its representation name instead
-        if aspect == 'CustomName': 
+        if aspect == 'CustomName':
             aspect = None
         aspect = self._check_aspect(aspect)
         if aspect is None:
             return None
-        
-        list_labels = topic_model.get_topic_info().set_index('Topic')[aspect].to_dict()
-        list_labels = [f'{k}_{"_".join(v)}' for k,v in list_labels.items()]
-        
-        dist_df = pd.DataFrame(distance_matrix, columns=list_labels, index=list_labels)
+
+        topic_label = topic_model.get_topic_info().set_index('Topic')[aspect].to_dict()
+        topic_label = {k: ', '.join(v) for k,v in topic_label.items()}
+        dist_df = pd.DataFrame(distance_matrix, columns=topic_label.keys(), index=topic_label.keys())
 
         tmp = []
         for rec in dist_df.reset_index().to_dict('records'):
@@ -281,27 +280,89 @@ class utils():
                 )
 
         pair_dist_df = pd.DataFrame(tmp)
+        cond = (pair_dist_df.topic1 > -1) & (pair_dist_df.topic2 > -1)
+        # topic1 is always smaller than topic2
+        cond = cond & (pair_dist_df.topic1 < pair_dist_df.topic2)
+        pair_dist_df = pair_dist_df.loc[cond].sort_values('distance', ascending = False).reset_index(drop=True)
+        pair_dist_df['label1'] = pair_dist_df['topic1'].apply(lambda x: topic_label[x])
+        pair_dist_df['label2'] = pair_dist_df['topic2'].apply(lambda x: topic_label[x])
 
-        pair_dist_df = pair_dist_df[(pair_dist_df.topic1.map(lambda x: not x.startswith('-1'))) &
-                    (pair_dist_df.topic2.map(lambda x: not x.startswith('-1')))]
+        return pair_dist_df
 
-        pair_dist_df = (pair_dist_df[pair_dist_df.topic1 < pair_dist_df.topic2]
-                .sort_values('distance', ascending = False)
-                .reset_index(drop=True))
+
+    def check_similarity(self, aspect=None, min_distance=0.8,
+                         embedding_model=None, pytorch_cos_sim=None):
+        
+        pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
-            print(f'Calculating the similarity of label pairs for which the topic similarity exceeds {min_distance}...')
-            dropt = lambda p: ', '.join(p.split('_')[1:])
-            encode = lambda x: embedding_model.encode(dropt(x), convert_to_tensor=True)
+            print(f'Calculating the similarity of label pairs for which the topic similarity exceeds {min_distance} ...')
+            encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
             pair_dist_df = pair_dist_df.join(pair_dist_df
                                              .loc[pair_dist_df.distance >= min_distance]
-                                             .apply(lambda x: pytorch_cos_sim(encode(x.topic1), encode(x.topic2))[0][0].item(), axis=1)
+                                             .apply(lambda x: pytorch_cos_sim(encode(x.label1), encode(x.label2))[0][0].item(), axis=1)
+                                             .rename('similarity')
+                                             , how='right')
+            # sort columns to set the labels at the end
+            pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'similarity')]
+        return pair_dist_df
+
+
+    def similarity_by_class(self, multi_topics_stats_df,
+                            min_rs = 0.8, err_slope = 0.3,
+                            col_class="wine", col_topic="topic_id", col_value='topic_wine_share',
+                            aspect=None, embedding_model=None, pytorch_cos_sim=None):
+        """
+        multi_topics_stats_df: multi_topics_stats.multi_topics_stats_df
+        min_rs: min r-squared
+        err_slope: delta for error of regression slope
+        kwargs_similarity: inputs of check_similarity
+        """
+        cond = (multi_topics_stats_df.topic_id > -1)
+        cols = [col_class, col_value, col_topic]
+        topics_by_class = (multi_topics_stats_df.loc[cond, cols]
+                           .pivot(index=col_class, columns=col_topic, values=col_value)
+                           .to_dict(orient='list'))
+
+        def get_rsquared(X, Y):
+            X = smapi.add_constant(X)
+            model = smapi.OLS(Y, X)
+            results = model.fit()
+            return results
+
+        pairs = []
+        params = []
+        for p in itertools.combinations(topics_by_class, 2):
+            X = topics_by_class[p[0]]
+            Y = topics_by_class[p[1]]
+            results = get_rsquared(X, Y)
+
+            if results.rsquared >= min_rs:
+                if 1-err_slope < results.params[1] < 1+err_slope:
+                    pairs.append(set(p))
+                    params.append(results.params)
+
+        if len(pairs) == 0:
+            print(f'No topic set with min r-squared {min_rs} & slope delta {err_slope}.')
+            return None
+
+        pairs = [sorted(x) for x in pairs]
+        params = [[round(x,5) for x in p] for p in params]
+        df_params = pd.DataFrame({'topic1':[x[0] for x in pairs], 'topic2':[x[1] for x in pairs], 'params by class': params})
+        
+        pair_dist_df = self.calc_topic_similarity(aspect)
+        index = ['topic1', 'topic2']
+        pair_dist_df = pair_dist_df.join(df_params.set_index(index), how='right', on=index)
+        pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'params by class')]
+
+        if (embedding_model is not None) and (pytorch_cos_sim is not None):
+            encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
+            pair_dist_df = pair_dist_df.join(pair_dist_df
+                                             .apply(lambda x: pytorch_cos_sim(encode(x.label1), encode(x.label2))[0][0].item(), axis=1)
                                              .rename('label similarity')
                                              , how='right')
-
-        # add each topic pair as a set for convenient indexing
-        pair_dist_df['pair'] = pair_dist_df.apply(lambda x: set(int(x.iloc[i].split('_')[0]) for i in range(2)), axis=1)
-        return pair_dist_df
+            pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'label similarity')]
+        return pair_dist_df.sort_values('distance', ascending = False)
 
 
     def calc_score(self, aspect='KeyBERT', tid=None):
@@ -352,7 +413,7 @@ class utils():
         if docs is None:
             print('ERROR!: docs required for approximate_distribution')
             return
-            
+
         self.count_children += 1
         topic_model = self.topic_model
 
@@ -1223,7 +1284,7 @@ class multi_topics_stats():
             multi_topics_stats_df['sentiment_share'] = (multi_topics_stats_df[f'topic_{col_class}_share']
                                                         .div(multi_topics_stats_df['sentiment_share'])
                                                         .apply(lambda x: f'{x:.0%}'))
-                                      
+
         print('stats for visualize_class_by_topic created.')
 
         #return multi_topics_stats_df
@@ -1402,7 +1463,7 @@ class multi_topics_stats():
                 fig.update_yaxes(categoryorder='category ascending')
             else:
                 fig.update_yaxes(categoryorder='category descending')
-                                     
+
         if not noshow:
             fig.show()
 
@@ -1468,6 +1529,7 @@ class multi_topics_stats():
         return topic_docs
 
 
+
 class multi_topics_sentiment():
     def __init__(self, topic_model, tokenizer=None, sentiment_analysis=None, max_sequence_length=2000):
         """
@@ -1476,7 +1538,7 @@ class multi_topics_sentiment():
         self.topic_labels = {topic: label for topic, label in topic_model.topic_labels_.items() if topic > -1}
         if sentiment_analysis == 'random':
             self.sentiment_analysis = lambda sent_list: [{
-                'label': np.random.choice(SENTIMENT_LABELS, 1)[0], 
+                'label': np.random.choice(SENTIMENT_LABELS, 1)[0],
                 'score': 1.0
                 } for x in range(len(sent_list))]
         else:
