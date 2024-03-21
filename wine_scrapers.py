@@ -17,15 +17,18 @@ import time
 
 #import os
 
-def simple_scraper(url, *elements, by=By.CLASS_NAME):
-    driver = webdriver.Chrome() 
-    driver.get(url)
-    time.sleep(2)
+def simple_scraper(url, *elements, by=By.CLASS_NAME, driver=None, quit_driver=True):
+    if driver is None:
+        driver = webdriver.Chrome() 
+        driver.get(url)
+        time.sleep(2)
 
     result = dict()
     for e in elements:
         l = driver.find_elements(by, e)
         result[e] = [x.text for x in l]
-    driver.quit()
+
+    if quit_driver:
+        driver.quit()
     
-    return result
+    return (result, driver)
