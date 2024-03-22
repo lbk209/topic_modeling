@@ -43,8 +43,12 @@ def read_csv(file, path_data, cols_eval=None, **kwargs):
 
     df_reviews = pd.DataFrame()
     for f in files:
-        df = pd.read_csv(f'{path_data}/{f}', converters=converters, **kwargs)
-        df_reviews = pd.concat([df_reviews, df])
+        try:
+            df = pd.read_csv(f'{path_data}/{f}', converters=converters, **kwargs)
+            df_reviews = pd.concat([df_reviews, df])
+        except SyntaxError:
+            print('ERROR: check converters arg first.')
+            return None
 
     return df_reviews.reset_index(drop=True)
 
