@@ -232,6 +232,17 @@ class utils():
         self.set_custom_labels(name=name)
 
 
+    def reduce_topics(seff, nr_topics, docs=None):
+        docs = self._check_var(docs, self.docs)
+        if docs is None:
+            print('ERROR!: docs required to merge topics')
+            return None
+
+        self.topic_model.reduce_topics(docs, nr_topics=nr_topics)
+        # update custom labels
+        self.set_custom_labels(name=name)
+
+
     def get_topics(self, index, num_topics=None, cols = ['Topic', 'KeyBERT']):
         """
         get a row from df, the result of bertopic_batch
