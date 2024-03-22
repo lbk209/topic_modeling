@@ -232,10 +232,10 @@ class utils():
         self.set_custom_labels(name=name)
 
 
-    def reduce_topics(seff, nr_topics, docs=None):
+    def reduce_topics(self, nr_topics, docs=None):
         docs = self._check_var(docs, self.docs)
         if docs is None:
-            print('ERROR!: docs required to merge topics')
+            print('ERROR!: docs required to reduce topics')
             return None
 
         self.topic_model.reduce_topics(docs, nr_topics=nr_topics)
