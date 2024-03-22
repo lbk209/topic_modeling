@@ -87,20 +87,6 @@ def check_topic_aspect(df_topic_info, aspect, aspect_default='Representation', s
     return aspect
 
 
-def import_topic_seeds(file):
-    """
-    file: text file of seed topics where each topic seperated by line feed (\n) and
-     a blank line will be ignored.
-    """
-    with open(file, 'r') as f:
-        seeds = f.read()
-    
-    seeds = [x.split(',') for x in seeds.split('\n')]
-    seeds = [[x.strip( ) for x in topic if x != ''] for topic in seeds]
-    seeds = [x for x in seeds if len(x) > 0]
-    return seeds
-
-
 class utils():
     def __init__(self, topic_model, reduced_embeddings=None, docs=None):
         self.topic_model = topic_model
@@ -232,7 +218,7 @@ class utils():
         self.set_custom_labels(name=name)
 
 
-    def reduce_topics(self, nr_topics, docs=None):
+    def reduce_topics(self, nr_topics, docs=None, name='KeyBERT'):
         docs = self._check_var(docs, self.docs)
         if docs is None:
             print('ERROR!: docs required to reduce topics')
@@ -317,7 +303,7 @@ class utils():
 
     def check_similarity(self, aspect=None, min_distance=0.8,
                          embedding_model=None, pytorch_cos_sim=None):
-        
+
         pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
@@ -374,7 +360,7 @@ class utils():
         pairs = [sorted(x) for x in pairs]
         params = [[round(x,5) for x in p] for p in params]
         df_params = pd.DataFrame({'topic1':[x[0] for x in pairs], 'topic2':[x[1] for x in pairs], 'params by class': params})
-        
+
         pair_dist_df = self.calc_topic_similarity(aspect)
         index = ['topic1', 'topic2']
         pair_dist_df = pair_dist_df.join(df_params.set_index(index), how='right', on=index)
