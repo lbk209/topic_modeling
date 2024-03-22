@@ -30,7 +30,7 @@ fig_path = args.directory
 pattern = args.pattern
 jupyter_width = args.width
 jupyter_height = args.height
-df_topic_info = args.topic
+df_topic_infos = args.topic # name as df_topic_infos to avoid conflict with df_topic_info which might happen to exist.
 
 debug = False
 
@@ -43,7 +43,7 @@ pattern = r'\d+(?=\.json)'
 
 jupyter_width = '80%'
 jupyter_height = 800
-df_topic_info = 'df_topic_info.csv'
+df_topic_infos = 'df_topic_info.csv'
 debug = True
 """
 
@@ -72,16 +72,16 @@ options = [{'label':html.Span(f'Topic {t}', style={"padding-left": 10}),
 
 # import df_topic_info
 topic_info = None
-if df_topic_info is not None:
+if df_topic_infos is not None:
     # None if no file exists
-    df_topic_info = read_csv(df_topic_info, path_data=fig_path)
+    df_topic_infos = read_csv(df_topic_infos, path_data=fig_path)
 
-    if df_topic_info is not None:
+    if df_topic_infos is not None:
         try:
-            cols = df_topic_info.columns.to_list()
+            cols = df_topic_infos.columns.to_list()
             aspects = cols[cols.index('Representation'):]
             # New in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
-            topic_info = df_topic_info.set_index('Topic')[aspects].applymap(eval).to_dict(orient='index')
+            topic_info = df_topic_infos.set_index('Topic')[aspects].applymap(eval).to_dict(orient='index')
         except ValueError as e:
             print(f'ERROR: {e}')
             topic_info = None
