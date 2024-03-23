@@ -89,8 +89,8 @@ def check_topic_aspect(df_topic_info, aspect, aspect_default='Representation', s
             print(f'Default aspect {aspect_default} is used.')
             aspect = aspect_default
     return aspect
-    
-    
+
+
 def import_topic_seeds(file):
     """
     file: text file of seed topics where each topic seperated by line feed (\n) and
@@ -98,7 +98,7 @@ def import_topic_seeds(file):
     """
     with open(file, 'r') as f:
         seeds = f.read()
-    
+
     seeds = [x.split(',') for x in seeds.split('\n')]
     seeds = [[x.strip( ) for x in topic if x != ''] for topic in seeds]
     seeds = [x for x in seeds if len(x) > 0]
@@ -1337,6 +1337,114 @@ class multi_topics_stats():
 
         #return ', '.join(data[:5]) + ', <br>         ' + ', '.join(data[5:])
         return ', '.join(data)
+
+
+    def topic_distribution_by_class(self,
+                                    num_topics = 10, # num of topics to plot
+                                    top_n_words = 3, # top_n_words for label
+                                    df_topic_info=None,
+                                    width=60,
+                                    height=500,
+                                    class_order_ascending = None,
+                                    aspect=None,
+                                    class_label_length=20,
+                                    #horizontal_bar=True,
+                                    margin_width=200, 
+                                    #margin_height=100,
+                                    tickangle=30,
+                                   ):
+        df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
+        if df_topic_info is None:
+            print('ERROR: No df_topic_info assigned')
+            return None
+
+        multi_topics_stats_df = self.multi_topics_stats_df
+        if multi_topics_stats_df is None:
+            print('ERROR: Run create_multi_topics_stats first')
+            return None
+
+        aspect = self._check_aspect(df_topic_info, aspect)
+        if aspect is None:
+            return None
+
+        col_class = self.col_class
+
+        df_hm = multi_topics_stats_df[[f'{col_class}', 'topic_id', f'topic_{col_class}_share', 'diff_significance_total']]
+
+        # Create topic labels for axis tick labels in concise form and provide full labels for hover.
+        func = lambda x, i: f'{x.name}_'+'_'.join(x[0][:i])
+        df = df_topic_info.set_index('Topic')[[aspect]]
+        topic_label = (df.apply(func, args=(top_n_words,), axis=1).to_frame('label')
+                        .assign(hover=df.apply(func, args=(-1,), axis=1)))
+
+        # define img for plot
+        cond = df_hm.topic_id <= num_topics
+        cond = cond & (df_hm.topic_id > -1)
+        img = (df_hm
+               .loc[cond]
+               .pivot(index='topic_id', columns=f'{col_class}', values=[f'topic_{col_class}_share', 'diff_significance_total'])
+               .join(topic_label, how='left')
+               .set_index('label', drop=True)
+        )
+        cols_share = [x for x in img.columns if x[0] == f'topic_{col_class}_share']
+        img = (img
+            .assign(max_share=img[cols_share].max(axis=1))
+            .sort_values('max_share', ascending=False)
+        )
+
+        # create parts of customdata for hover
+        label_h = img.hover.to_list()
+        cols = [x for x in img.columns if x[0] == 'diff_significance_total']
+        cd2 = img[cols].T.to_records(index=False).tolist()
+
+        # finalize img to plot after customdata creation
+        img = img[cols_share].rename(columns=dict(zip(cols_share, [x[1] for x in cols_share]))).T
+        img.index = [split_str(x, length=class_label_length, split='<br>') for x in img.index]
+
+        # complete customdata. cd1 defined only after finalizing img
+        cd1 =  [label_h for _ in img.index]
+        customdata = np.stack((cd1, cd2), axis=2)
+
+        # plot finally
+        fig = go.Figure()
+        fig.add_trace(go.Heatmap(
+            z=img.to_records(index=False).tolist(),
+            x=img.columns,
+            y=img.index,
+            colorscale = 'BuPu',
+            customdata=customdata,
+            hovertemplate='%{y}<br>%{customdata[0]}<br>topic share: %{z:.1f}%<br>significance: %{customdata[1]}<extra></extra>',
+            ))
+
+        #height = max(img.index.nunique() * height + margin_height, 300)
+        #height = min(height, 800)
+
+        width = max(img.columns.nunique() * width + margin_width, 500)
+        width = min(width, 1200)
+
+        fig.update_layout(
+            title = f'Topic distribution by {col_class}',
+            #autosize=False,
+            width=width, 
+            height=height,
+            #margin=dict(l=margin_width, 
+                        #r=20, t=20, 
+                        #b=margin_height),
+            #paper_bgcolor="LightSteelBlue",
+        )
+
+        fig.update_xaxes(
+            constrain="domain",  # meanwhile compresses the xaxis by decreasing its "domain"
+            tickangle=tickangle
+        )
+
+        fig.update_yaxes(
+            scaleanchor = "x",
+            scaleratio = 1,
+            constrain="domain",
+        )
+
+        fig.show()
 
 
     def get_color_significance(self, rel):
