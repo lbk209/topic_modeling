@@ -120,23 +120,38 @@ class utils():
         return var_arg
 
 
-    def print_topic_info(self):
+    def print_topic_info(self, save=False, path='.', 
+                         docs=None, classes_docs=None):
         """
         print number of topics and percentage of outliers
+        classes_docs: list of class of docs to add to repr docs
         """
-        df = self.topic_model.get_topic_info()
+        df_topic_info = self.topic_model.get_topic_info()
 
-        a = len(df.loc[df.Topic > -1])
+        a = len(df_topic_info.loc[df_topic_info.Topic > -1])
         print(f'num of topics: {a}')
 
-        a = df.loc[df.Topic == -1]['Count']
+        a = df_topic_info.loc[df_topic_info.Topic == -1]['Count']
         if a.count() > 0:
-            a = a.values[0]/df['Count'].sum()
+            a = a.values[0]/df_topic_info['Count'].sum()
         else:
             a = 0
         print(f'outliers: {a:.3f}')
 
-        return df
+        # update repr docs
+        docs = self._check_var(docs, self.docs)
+        if (docs is not None) and (classes_docs is not None):
+            df_topic_info['Representative_Docs'] = \
+                (df_topic_info['Representative_Docs']
+                .apply(lambda d: [f'{classes_docs[docs.index(x)]}: {x}' for x in d])
+                .apply(str))
+
+        if save:
+            f = f'{path}/df_topic_info.csv'
+            df_topic_info.to_csv(f, index=False)
+            print(f'{f} saved.')
+        
+        return df_topic_info
 
 
     def get_topic_labels(self, list_tid=None, aspect=None, min_count=0, length=120, sort_by_input=True, print_labels=True):
@@ -192,7 +207,7 @@ class utils():
 
 
     def get_topic_docs(self, topic, class_name=None, num_print=5, length_print=120,
-                       docs=None, classes_all=None, aspect=None):
+                       docs=None, classes_docs=None, aspect=None):
         """
         get docs of the topic and print the num_print of docs.
         """
@@ -202,9 +217,9 @@ class utils():
             return None
 
         topics = self.topic_model.topics_
-        if (class_name is not None) and (classes_all is not None):
+        if (class_name is not None) and (classes_docs is not None):
             cond = lambda x: (x[0] == topic) and (class_name.lower() in x[1].lower())
-            topic_docs = [docs[i] for i, x in enumerate(zip(topics, classes_all)) if cond(x)]
+            topic_docs = [docs[i] for i, x in enumerate(zip(topics, classes_docs)) if cond(x)]
         else:
             topic_docs = [docs[i] for i, x in enumerate(topics) if x == topic]
 
@@ -434,7 +449,7 @@ class utils():
                          reduced_embeddings=self.reduced_embeddings)
 
 
-    def multi_topics_stats(self, docs=None, df_data=None, col_class=None):
+    def multi_topics_stats(self, docs=None, col_class=None, classes_docs=None):
         """
         create a instance of multi_topics_stats class
         """
@@ -448,7 +463,8 @@ class utils():
 
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
         df_topic_info = topic_model.get_topic_info()
-        return multi_topics_stats(*args_distr, df_data=df_data, df_topic_info=df_topic_info, col_class=col_class)
+        return multi_topics_stats(*args_distr, df_topic_info=df_topic_info, 
+                                  col_class=col_class, classes_docs=classes_docs)
 
 
     def multi_topics_sentiment(self, sentiment_analysis,
@@ -920,7 +936,8 @@ class param_study():
 
 
 class multi_topics_stats():
-    def __init__(self, topic_distr, topic_token_distr, df_data=None, df_topic_info=None, col_class=None):
+    def __init__(self, topic_distr, topic_token_distr, df_topic_info=None, 
+                 col_class=None, classes_docs=None):
         # A n x m matrix containing the topic distributions for all input documents
         #  with n being the documents and m the topics
         self.topic_distr = topic_distr
@@ -929,11 +946,11 @@ class multi_topics_stats():
         self.topic_token_distr = topic_token_distr
         self.multi_topics_df = None
         self.multi_topics_stats_df = None
-        self.df_data = df_data
         self.df_topic_info = df_topic_info # BERTopic.get_topic_info()
         self.sentiment = False
         self.aspect = None
         self.col_class = col_class
+        self.classes_docs = classes_docs # list of class of docs
 
 
     def visualize_distr_per_threshold(self, max_threshhold=0.15, n_topics=5,
@@ -1105,22 +1122,24 @@ class multi_topics_stats():
         return subs_senti
 
 
-    def get_multi_topics_df(self, threshold=0, df_data=None, cols_add=None,
+    def get_multi_topics_df(self, threshold=0, df_data=None,
                             sentiment=None, sentiment_func=None, docs=None):
         """
         get df of topic, docu id and class.
          count of id is num of all subsentences, which is greater than num of docs(nunique of id).
-        df_data: dataframe of docs including document id and cols_add (such as document class)
-        cols_add: list of columns of df_data for multi_topics_df
+        df_data: dataframe of docs 'id' and additional info (such as document class) of docs to add multi_topics_df. 
         sentiment: None, True, False. None to use self.sentiment
         sentiment_func: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
-        df_data = self._check_var(df_data, self.df_data)
-        if df_data is None:
-            print('ERROR: No df_data assigned')
-            return None
-
         topic_distr = self.topic_distr
+
+        if df_data is None:
+            df_data = pd.DataFrame({'id':range(len(topic_distr))})
+            cols_add = None
+        else:
+            cols_add = [x for x in df_data.columns if x != 'id']
+            if len(cols_add) == 0:
+                cols_add = None
 
         # define topics with probability > threshold for each document
         # This approach will help us to reduce the number of outliers
@@ -1195,19 +1214,26 @@ class multi_topics_stats():
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def create_multi_topics_stats(self, col_class=None, alpha=0.05, warning_ztest_r=0.2,
-                                  # inputs for get_multi_topics_df
-                                  threshold=0, df_data=None, cols_add=None,
+    def create_multi_topics_stats(self, col_class=None, classes_docs=None, 
+                                  alpha=0.05, warning_ztest_r=0.2,
+                                  threshold=0, # see get_multi_topics_df
                                   sentiment=None, sentiment_func=None, docs=None):
         """
         create stats from self.multi_topics_df
+        classes_docs: list of class of docs
         """
         # check col_class which is requisite
         col_class = self._check_var(col_class, self.col_class)
         if col_class is None:
             print('ERROR: Set col_class.')
             return None
-
+        classes_docs = self._check_var(classes_docs, self.classes_docs)
+        if classes_docs is None:
+            print('ERROR: Set classes of docs.')
+            return None
+        
+        df_data = pd.DataFrame({col_class: classes_docs}).rename_axis('id').reset_index()
+        
         # check and set sentiment
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment is not None:
@@ -1222,7 +1248,7 @@ class multi_topics_stats():
             else:
                 kwa = dict(sentiment=sentiment)
 
-            multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
+            multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, **kwa)
         else:
             if col_class not in multi_topics_df.columns:
                 if sentiment: # Run get_multi_topics_df with sentiment
@@ -1230,12 +1256,12 @@ class multi_topics_stats():
                 else:
                     kwa = dict(sentiment=sentiment)
 
-                multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
+                multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, **kwa)
             else:
                 if sentiment and ('sentiment' not in multi_topics_df.columns):
                     # Run get_multi_topics_df with sentiment
                     kwa = dict(sentiment=sentiment, sentiment_func=sentiment_func, docs=docs)
-                    multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, cols_add=[col_class], **kwa)
+                    multi_topics_df = self.get_multi_topics_df(threshold=threshold, df_data=df_data, **kwa)
 
         # create multi_topics_stats_df
         tmp_data = []
@@ -1618,11 +1644,12 @@ class multi_topics_stats():
 
 
     def get_multi_topic_docs(self, topic, class_name=None, num_print=5, length_print=120,
-                             docs=None, classes_all=None, aspect=None,
+                             docs=None, aspect=None,
                              df_topic_info=None, col_class=None):
         """
         get docs of the multi topic and print the num_print of docs.
-        docs: set as kwa following the convention of utils.get_topic_docs
+        docs: set as keyword arg following the convention of utils.get_topic_docs
+        class_name: retrieve docs of the class if avaiable
         """
         if docs is None:
             print('ERROR: No docs assigned.')
@@ -1639,6 +1666,11 @@ class multi_topics_stats():
             if col_class is None:
                 print('ERROR: Set col_class.')
                 return None
+            else:
+                if col_class not in multi_topics_df.columns:
+                    print(f'ERROR: No {col_class} in multi_topics_df.')
+                    return None
+                
             cond = cond & multi_topics_df[col_class].str.lower().str.contains(class_name.lower())
 
         topic_docs = [docs[x] for x in multi_topics_df.loc[cond].id.unique()]
