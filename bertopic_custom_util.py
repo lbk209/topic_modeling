@@ -1343,14 +1343,13 @@ class multi_topics_stats():
                                     num_topics = 10, # num of topics to plot
                                     top_n_words = 3, # top_n_words for label
                                     df_topic_info=None,
-                                    width=60,
-                                    height=500,
-                                    class_order_ascending = None,
                                     aspect=None,
+                                    class_order_ascending = None,
                                     class_label_length=20,
-                                    #horizontal_bar=True,
-                                    margin_width=200, 
-                                    #margin_height=100,
+                                    height=70,
+                                    ratio = 1.0,
+                                    margin_width=200,
+                                    margin_height=100,
                                     tickangle=30,
                                    ):
         df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
@@ -1414,21 +1413,23 @@ class multi_topics_stats():
             colorscale = 'BuPu',
             customdata=customdata,
             hovertemplate='%{y}<br>%{customdata[0]}<br>topic share: %{z:.1f}%<br>significance: %{customdata[1]}<extra></extra>',
+            text=[['' if x == 'no diff' else x[0].upper() for x in xs] for xs in cd2],
+            texttemplate="%{text}",
+            textfont={"size":round(height/7)}
             ))
 
-        #height = max(img.index.nunique() * height + margin_height, 300)
-        #height = min(height, 800)
+        fig_h = max(img.index.nunique() * height + margin_height, 300)
+        fig_h = min(fig_h, 800)
 
-        width = max(img.columns.nunique() * width + margin_width, 500)
-        width = min(width, 1200)
+        fig_w = max(img.columns.nunique() * height * ratio + margin_width, 500)
+        fig_w = min(fig_w, 1200)
 
         fig.update_layout(
             title = f'Topic distribution by {col_class}',
             #autosize=False,
-            width=width, 
-            height=height,
-            #margin=dict(l=margin_width, 
-                        #r=20, t=20, 
+            width=fig_w, height=fig_h,
+            #margin=dict(l=margin_width,
+                        #r=20, t=20,
                         #b=margin_height),
             #paper_bgcolor="LightSteelBlue",
         )
