@@ -244,6 +244,9 @@ def load_reviews(file, path='data'):
 
 
 def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2', min_score=0):
+    """
+    wines: dict of wine to its vivino url
+    """
     list_n = list()
     list_u = list()
     list_s = list()
@@ -281,31 +284,24 @@ def check_duplicated(df, cols=['wine','date','review'], drop=False):
     return df
 
 
-def find_style(name, style_dict=WINE_STYLE, semantic_search=None, threshold=0.5):
+def find_style(wines, style_dict=WINE_STYLE):
     """
-    find the style of name from style_dict
-    semantic_search: set to a instance of SemanticSearch for loop job
+    find the style of wine in wines from style_dict
+    wines: list of wines
     """
-    if semantic_search is None:
-        semantic_search = SemanticSearch()
-        
-    res = dict()
-    for s, words in style_dict.items():
-        # 19 s ± 2.88 s
-        #scores = [semantic_search.quick(x, name)[1] for x in words]
-        #res[s] = max(scores)
-        
-        # same result with same speed (19.7 s ± 2.56)
-        res[s] = semantic_search.quick(name, words)[1]
+    dict_tmp = {w:s for s, ws in style_dict.items() for w in ws}
+    voca = list(dict_tmp.keys())
+    voca_style = list(dict_tmp.values())
     
-    #return [k for k,v in res.items() if v==max(res.values())][0]
+    ss = SemanticSearch(vocabulary=voca)
+    result = ss.search(wines, top_k=1)
+
+    swords = [x[0] for x in result['word']]
+    scores = [x[0] for x in result['score']]
+    styles = [voca_style[voca.index(x)] for x in swords]
     
-    res = sorted(res.items(), key=lambda x:x[1], reverse=True)
-    st, ms = res[0]
-    if ms < threshold:
-        return None
-    else:
-        return st
+    df_style = pd.DataFrame({'wine':wines, 'style': styles, 'score':scores, 'word':swords})
+    return df_style
 
 
 
@@ -353,7 +349,7 @@ class SemanticSearch():
     def check_existence(self, queries, threshold=0.5, top_k_max=10,
                         return_new=True, print_out=True, sort=True):
         """
-        search the queries in big self.vocabulary
+        check if the items in queries exit in self.vocabulary
         queries: a query word or list of queries
         """
         result = self.search(queries, top_k=top_k_max)
@@ -370,23 +366,33 @@ class SemanticSearch():
             else:
                 words_new[q] = [word, round(score, 3)]
 
+
+        df_existing = pd.DataFrame.from_dict(words_existing, orient='index', columns=['result', 'score']).rename_axis('query')
+        df_new = pd.DataFrame.from_dict(words_new, orient='index', columns=['result', 'score']).rename_axis('query')
+        if sort:
+            df_existing = df_existing.sort_values('score', ascending=False)
+            df_new = df_new.sort_values('score', ascending=False)
+        df_existing = df_existing.reset_index()
+        df_new = df_new.reset_index()
+        
         lf = ''
         if print_out:
-            if len(words_existing) > 0:
+            if len(df_existing) > 0:
                 print('Existing words (query: result)')
-                _ = [print(f'{k}: {v[0]}') for k,v in words_existing.items()]
+                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_existing.iterrows()]
                 lf = '\n'
-            if len(words_new) > 0:
+                
+            if len(df_new) > 0:
                 print(f'{lf}New words (query: result)')
-                _ = [print(f'{k}: score {v[1]} with {v[0]}') for k,v in words_new.items()]
+                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_new.iterrows()]
                 lf = '\n'
-            
+
         if return_new:
             print(f'{lf}Returning new words')
-            return words_new
+            return df_new
         else:
             print(f'{lf}Returning existing words')
-            return words_existing
+            return df_existing
         
 
     def quick(self, query, voca_small):
