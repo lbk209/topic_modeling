@@ -17,7 +17,9 @@ from datetime import datetime
 
 import os
 
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
+from sentence_transformers import util as stutil
+import torch
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -245,7 +247,7 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
     for name, url in wines.items():
         e1 = encode(name)
         parts = url.split(split)
-        csims = [util.pytorch_cos_sim(e1, encode(x)) for x in parts]
+        csims = [stutil.pytorch_cos_sim(e1, encode(x)) for x in parts]
         mc = max(csims).item()
         name2 = parts[csims.index(mc)]
         #print(f'{mc.item():.2f}) {name}: {name2}')
@@ -265,24 +267,6 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
     return df
 
 
-def check_wine(wine, wine_list, st_id='all-MiniLM-L6-v2', print_result=True):
-    """
-    check if wine is in wine_list.
-    return the index of wine of max score in wine_list
-    """
-    model = SentenceTransformer(st_id)
-    encode = lambda x: model.encode(x, convert_to_tensor=True)
-    
-    e_w = encode(wine)
-    csims = [util.pytorch_cos_sim(e_w, encode(x)) for x in wine_list]
-    mc = max(csims).item()
-    idx = csims.index(mc)
-    wine2 = wine_list[idx]
-    if print_result:
-        print(f'{wine}: score {mc:.2f} with {wine2}')
-    return [idx, mc]
-
-
 def check_duplicated(df, cols=['wine','date','review'], drop=False):
     """
     check or drop duplicated reviews
@@ -292,3 +276,33 @@ def check_duplicated(df, cols=['wine','date','review'], drop=False):
     else:
         df = df.loc[df.duplicated(cols, keep=False)].sort_values(cols)
     return df
+
+
+class SemanticSearch():
+    def __init__(self, vocabulary, embedding_model):
+        self.encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
+        self.vocabulary = vocabulary
+        self.voca_embeddings = self.encode(vocabulary)
+
+    def search(self, query, top_k=3, min_score=0.3):
+        query_embedding = self.encode(query)
+
+        # use cosine-similarity and torch.topk to find the highest 5 scores
+        cos_scores = stutil.cos_sim(query_embedding, self.voca_embeddings)[0]
+        top_results = torch.topk(cos_scores, k=top_k)
+
+        words = [self.vocabulary[i] for i in top_results[1]]
+        scores = [x.item() for x in top_results[0]]
+
+        res = {w:s for w,s in zip(words, scores) if s >= min_score}
+        if len(res) == 0:
+            print('No search result')
+            res = None
+
+        return res
+
+    @classmethod
+    def simple(cls, query, voca_small, embedding_model,
+               top_k=1, min_score=0.3):
+        ss = cls(voca_small, embedding_model)
+        return ss.search(query, top_k=top_k, min_score=min_score)
