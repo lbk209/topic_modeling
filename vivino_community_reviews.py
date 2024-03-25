@@ -311,39 +311,88 @@ def find_style(name, style_dict=WINE_STYLE, semantic_search=None, threshold=0.5)
 
 class SemanticSearch():
     def __init__(self, vocabulary=None, embedding_model='all-MiniLM-L6-v2'):
+        """
+        vocabulary: list of words
+        """
         if isinstance(embedding_model, str):
             embedding_model = SentenceTransformer(embedding_model)
         self.encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
         self.vocabulary = vocabulary
         if vocabulary is not None:
             self.voca_embeddings = self.encode(vocabulary)
+            
 
-    def search(self, query, top_k=3, min_score=0.3):
+    def search(self, queries, top_k=3, top_k_max=100):
         """
-        search the query in big self.vocabulary
+        search the queries in big self.vocabulary
+        queries: a query word or list of queries
         """
         if self.vocabulary is None:
             print('ERROR: Init with vocabulary first')
-        else:
-            vocabulary = self.vocabulary
-        query_embedding = self.encode(query)
+            return None
+        
+        vocabulary = self.vocabulary
+        top_k = min(top_k, len(vocabulary))
+        if top_k > top_k_max:
+            top_k = top_k_max
+        
+        queries_embedding = self.encode(queries)
 
         # use cosine-similarity and torch.topk to find the highest 5 scores
-        cos_scores = stutil.cos_sim(query_embedding, self.voca_embeddings)[0]
-        top_results = torch.topk(cos_scores, k=top_k)
+        cos_scores = stutil.cos_sim(queries_embedding, self.voca_embeddings)
+        # top_results[0] top_k scores for each query in queries  
+        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
 
-        words = [vocabulary[i] for i in top_results[1]]
-        scores = [x.item() for x in top_results[0]]
+        result = dict()
+        result['word'] = [[vocabulary[i] for i in x] for x in top_results[1]]
+        result['score'] = top_results[0].tolist()
 
-        res = {w:s for w,s in zip(words, scores) if s >= min_score}
-        if len(res) == 0:
-            print('No search result')
-            res = None
-        return res
+        return result
+        
+
+    def check_existence(self, queries, threshold=0.5, top_k_max=10,
+                        return_new=True, print_out=True, sort=True):
+        """
+        search the queries in big self.vocabulary
+        queries: a query word or list of queries
+        """
+        result = self.search(queries, top_k=top_k_max)
+        if result is None:
+            return None
+
+        words_existing = {}
+        words_new = {}
+        for i, q in enumerate(queries):
+            score = result['score'][i][0]
+            word = result['word'][i][0]
+            if score >= threshold:
+                words_existing[q] = [word, round(score, 3)]
+            else:
+                words_new[q] = [word, round(score, 3)]
+
+        lf = ''
+        if print_out:
+            if len(words_existing) > 0:
+                print('Existing words (query: result)')
+                _ = [print(f'{k}: {v[0]}') for k,v in words_existing.items()]
+                lf = '\n'
+            if len(words_new) > 0:
+                print(f'{lf}New words (query: result)')
+                _ = [print(f'{k}: score {v[1]} with {v[0]}') for k,v in words_new.items()]
+                lf = '\n'
+            
+        if return_new:
+            print(f'{lf}Returning new words')
+            return words_new
+        else:
+            print(f'{lf}Returning existing words')
+            return words_existing
+        
 
     def quick(self, query, voca_small):
         """
         search the query in voca_small which is to be redefined in a loop
+        query: str
         """
         encode = self.encode
         if not isinstance(voca_small, list):
