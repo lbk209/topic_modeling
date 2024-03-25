@@ -292,9 +292,6 @@ class utils():
 
 
     def calc_topic_similarity(self, aspect=None):
-        """
-        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim
-        """
         topic_model = self.topic_model
         distance_matrix = cosine_similarity(np.array(topic_model.topic_embeddings_))
 
@@ -336,7 +333,11 @@ class utils():
 
     def check_similarity(self, aspect=None, min_distance=0.8,
                          embedding_model=None, pytorch_cos_sim=None):
-
+        """
+        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim, 
+         which is to be given as arg to avoid import sentence_transformers package.
+         it might be same as cosine_similarity of sklearn or not.
+        """
         pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
