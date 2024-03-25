@@ -23,6 +23,13 @@ import torch
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+WINE_STYLE = {
+    'red': ['cabernet sauvignon', 'shiraz', 'syrah', 'pinot noir', 'merlot', 'carmenere', 'malbec'],
+    'white': ['chardonnay', 'sauvignon blanc', 'riesling'],
+    'sparkling': ['champagne', "moscato d'asti", 'cava'],
+    #'desert': []
+}
+
 
 def collect_reviews(class_name, driver, by=By.CLASS_NAME):
     l = driver.find_elements(by, class_name)
@@ -245,9 +252,7 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2', min_
     
     for name, url in wines.items():
         parts = url.split(split)
-        res = ss.quick(name, parts)
-        name_url = list(res.keys())[0]
-        score = res[name_url]
+        name_url, score = ss.quick(name, parts)
         
         list_n.append(name)
         list_u.append(name_url)
@@ -274,6 +279,34 @@ def check_duplicated(df, cols=['wine','date','review'], drop=False):
     else:
         df = df.loc[df.duplicated(cols, keep=False)].sort_values(cols)
     return df
+
+
+def find_style(name, style_dict=WINE_STYLE, semantic_search=None, threshold=0.5):
+    """
+    find the style of name from style_dict
+    semantic_search: set to a instance of SemanticSearch for loop job
+    """
+    if semantic_search is None:
+        semantic_search = SemanticSearch()
+        
+    res = dict()
+    for s, words in style_dict.items():
+        # 19 s ± 2.88 s
+        #scores = [semantic_search.quick(x, name)[1] for x in words]
+        #res[s] = max(scores)
+        
+        # same result with same speed (19.7 s ± 2.56)
+        res[s] = semantic_search.quick(name, words)[1]
+    
+    #return [k for k,v in res.items() if v==max(res.values())][0]
+    
+    res = sorted(res.items(), key=lambda x:x[1], reverse=True)
+    st, ms = res[0]
+    if ms < threshold:
+        return None
+    else:
+        return st
+
 
 
 class SemanticSearch():
@@ -313,7 +346,10 @@ class SemanticSearch():
         search the query in voca_small which is to be redefined in a loop
         """
         encode = self.encode
+        if not isinstance(voca_small, list):
+            voca_small = [voca_small]
         scores = [stutil.pytorch_cos_sim(encode(query), encode(x)) for x in voca_small]
         maxscore = max(scores).item()
         word = voca_small[scores.index(maxscore)]
-        return {word: maxscore}
+        #return {word: maxscore}
+        return (word, maxscore)
