@@ -236,24 +236,22 @@ def load_reviews(file, path='data'):
     return df
 
 
-def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
-    model = SentenceTransformer(st_id)
-    encode = lambda x: model.encode(x, convert_to_tensor=True)
-
+def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2', min_score=0):
     list_n = list()
     list_u = list()
     list_s = list()
+
+    ss = SemanticSearch(embedding_model=st_id)
     
     for name, url in wines.items():
-        e1 = encode(name)
         parts = url.split(split)
-        csims = [stutil.pytorch_cos_sim(e1, encode(x)) for x in parts]
-        mc = max(csims).item()
-        name2 = parts[csims.index(mc)]
-        #print(f'{mc.item():.2f}) {name}: {name2}')
+        res = ss.quick(name, parts)
+        name_url = list(res.keys())[0]
+        score = res[name_url]
+        
         list_n.append(name)
-        list_u.append(name2)
-        list_s.append(mc)
+        list_u.append(name_url)
+        list_s.append(score)
 
     df = (pd.DataFrame()
             .from_dict({'wine':list_n, 'url':list_u, 'similarity': list_s})
@@ -279,30 +277,43 @@ def check_duplicated(df, cols=['wine','date','review'], drop=False):
 
 
 class SemanticSearch():
-    def __init__(self, vocabulary, embedding_model):
+    def __init__(self, vocabulary=None, embedding_model='all-MiniLM-L6-v2'):
+        if isinstance(embedding_model, str):
+            embedding_model = SentenceTransformer(embedding_model)
         self.encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
         self.vocabulary = vocabulary
-        self.voca_embeddings = self.encode(vocabulary)
+        if vocabulary is not None:
+            self.voca_embeddings = self.encode(vocabulary)
 
     def search(self, query, top_k=3, min_score=0.3):
+        """
+        search the query in big self.vocabulary
+        """
+        if self.vocabulary is None:
+            print('ERROR: Init with vocabulary first')
+        else:
+            vocabulary = self.vocabulary
         query_embedding = self.encode(query)
 
         # use cosine-similarity and torch.topk to find the highest 5 scores
         cos_scores = stutil.cos_sim(query_embedding, self.voca_embeddings)[0]
         top_results = torch.topk(cos_scores, k=top_k)
 
-        words = [self.vocabulary[i] for i in top_results[1]]
+        words = [vocabulary[i] for i in top_results[1]]
         scores = [x.item() for x in top_results[0]]
 
         res = {w:s for w,s in zip(words, scores) if s >= min_score}
         if len(res) == 0:
             print('No search result')
             res = None
-
         return res
 
-    @classmethod
-    def simple(cls, query, voca_small, embedding_model,
-               top_k=1, min_score=0.3):
-        ss = cls(voca_small, embedding_model)
-        return ss.search(query, top_k=top_k, min_score=min_score)
+    def quick(self, query, voca_small):
+        """
+        search the query in voca_small which is to be redefined in a loop
+        """
+        encode = self.encode
+        scores = [stutil.pytorch_cos_sim(encode(query), encode(x)) for x in voca_small]
+        maxscore = max(scores).item()
+        word = voca_small[scores.index(maxscore)]
+        return {word: maxscore}
