@@ -17,9 +17,18 @@ from datetime import datetime
 
 import os
 
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
+from sentence_transformers import util as stutil
+import torch
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+WINE_STYLE = {
+    'red': ['cabernet sauvignon', 'shiraz', 'syrah', 'pinot noir', 'merlot', 'carmenere', 'malbec'],
+    'white': ['chardonnay', 'sauvignon blanc', 'riesling'],
+    'sparkling': ['champagne', "moscato d'asti", 'cava'],
+    #'desert': []
+}
 
 
 def collect_reviews(class_name, driver, by=By.CLASS_NAME):
@@ -234,24 +243,23 @@ def load_reviews(file, path='data'):
     return df
 
 
-def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
-    model = SentenceTransformer(st_id)
-    encode = lambda x: model.encode(x, convert_to_tensor=True)
-
+def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2', min_score=0):
+    """
+    wines: dict of wine to its vivino url
+    """
     list_n = list()
     list_u = list()
     list_s = list()
+
+    ss = SemanticSearch(embedding_model=st_id)
     
     for name, url in wines.items():
-        e1 = encode(name)
         parts = url.split(split)
-        csims = [util.pytorch_cos_sim(e1, encode(x)) for x in parts]
-        mc = max(csims).item()
-        name2 = parts[csims.index(mc)]
-        #print(f'{mc.item():.2f}) {name}: {name2}')
+        name_url, score = ss.quick(name, parts)
+        
         list_n.append(name)
-        list_u.append(name2)
-        list_s.append(mc)
+        list_u.append(name_url)
+        list_s.append(score)
 
     df = (pd.DataFrame()
             .from_dict({'wine':list_n, 'url':list_u, 'similarity': list_s})
@@ -265,24 +273,6 @@ def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2'):
     return df
 
 
-def check_wine(wine, wine_list, st_id='all-MiniLM-L6-v2', print_result=True):
-    """
-    check if wine is in wine_list.
-    return the index of wine of max score in wine_list
-    """
-    model = SentenceTransformer(st_id)
-    encode = lambda x: model.encode(x, convert_to_tensor=True)
-    
-    e_w = encode(wine)
-    csims = [util.pytorch_cos_sim(e_w, encode(x)) for x in wine_list]
-    mc = max(csims).item()
-    idx = csims.index(mc)
-    wine2 = wine_list[idx]
-    if print_result:
-        print(f'{wine}: score {mc:.2f} with {wine2}')
-    return [idx, mc]
-
-
 def check_duplicated(df, cols=['wine','date','review'], drop=False):
     """
     check or drop duplicated reviews
@@ -292,3 +282,129 @@ def check_duplicated(df, cols=['wine','date','review'], drop=False):
     else:
         df = df.loc[df.duplicated(cols, keep=False)].sort_values(cols)
     return df
+
+
+def find_style(wines, style_dict=WINE_STYLE):
+    """
+    find the style of wine in wines from style_dict
+    wines: list of wines
+    """
+    dict_tmp = {w:s for s, ws in style_dict.items() for w in ws}
+    voca = list(dict_tmp.keys())
+    voca_style = list(dict_tmp.values())
+    
+    ss = SemanticSearch(vocabulary=voca)
+    result = ss.search(wines, top_k=1)
+
+    swords = [x[0] for x in result['word']]
+    scores = [x[0] for x in result['score']]
+    styles = [voca_style[voca.index(x)] for x in swords]
+    
+    df_style = pd.DataFrame({'wine':wines, 'style': styles, 'score':scores, 'word':swords})
+    return df_style
+
+
+
+class SemanticSearch():
+    def __init__(self, vocabulary=None, embedding_model='all-MiniLM-L6-v2'):
+        """
+        vocabulary: list of words
+        """
+        if isinstance(embedding_model, str):
+            embedding_model = SentenceTransformer(embedding_model)
+        self.encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
+        self.vocabulary = vocabulary
+        if vocabulary is not None:
+            self.voca_embeddings = self.encode(vocabulary)
+            
+
+    def search(self, queries, top_k=3, top_k_max=100):
+        """
+        search the queries in big self.vocabulary
+        queries: a query word or list of queries
+        """
+        if self.vocabulary is None:
+            print('ERROR: Init with vocabulary first')
+            return None
+        
+        vocabulary = self.vocabulary
+        top_k = min(top_k, len(vocabulary))
+        if top_k > top_k_max:
+            top_k = top_k_max
+        
+        queries_embedding = self.encode(queries)
+
+        # use cosine-similarity and torch.topk to find the highest 5 scores
+        cos_scores = stutil.cos_sim(queries_embedding, self.voca_embeddings)
+        # top_results[0] top_k scores for each query in queries  
+        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
+
+        result = dict()
+        result['word'] = [[vocabulary[i] for i in x] for x in top_results[1]]
+        result['score'] = top_results[0].tolist()
+
+        return result
+        
+
+    def check_existence(self, queries, threshold=0.5, top_k_max=10,
+                        return_new=True, print_out=True, sort=True):
+        """
+        check if the items in queries exit in self.vocabulary
+        queries: a query word or list of queries
+        """
+        result = self.search(queries, top_k=top_k_max)
+        if result is None:
+            return None
+
+        words_existing = {}
+        words_new = {}
+        for i, q in enumerate(queries):
+            score = result['score'][i][0]
+            word = result['word'][i][0]
+            if score >= threshold:
+                words_existing[q] = [word, round(score, 3)]
+            else:
+                words_new[q] = [word, round(score, 3)]
+
+
+        df_existing = pd.DataFrame.from_dict(words_existing, orient='index', columns=['result', 'score']).rename_axis('query')
+        df_new = pd.DataFrame.from_dict(words_new, orient='index', columns=['result', 'score']).rename_axis('query')
+        if sort:
+            df_existing = df_existing.sort_values('score', ascending=False)
+            df_new = df_new.sort_values('score', ascending=False)
+        df_existing = df_existing.reset_index()
+        df_new = df_new.reset_index()
+        
+        lf = ''
+        if print_out:
+            if len(df_existing) > 0:
+                print('Existing words (query: result)')
+                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_existing.iterrows()]
+                lf = '\n'
+                
+            if len(df_new) > 0:
+                print(f'{lf}New words (query: result)')
+                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_new.iterrows()]
+                lf = '\n'
+
+        if return_new:
+            print(f'{lf}Returning new words')
+            return df_new
+        else:
+            print(f'{lf}Returning existing words')
+            return df_existing
+        
+
+    def quick(self, query, voca_small):
+        """
+        search the query in voca_small which is to be redefined in a loop
+        query: str
+        """
+        encode = self.encode
+        if not isinstance(voca_small, list):
+            voca_small = [voca_small]
+        scores = [stutil.pytorch_cos_sim(encode(query), encode(x)) for x in voca_small]
+        maxscore = max(scores).item()
+        word = voca_small[scores.index(maxscore)]
+        #return {word: maxscore}
+        return (word, maxscore)
