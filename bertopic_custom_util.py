@@ -246,6 +246,13 @@ class utils():
             print('ERROR!: docs required to merge topics')
             return None
 
+        if isinstance(topics_to_merge[0], list):
+            pairs = [f"({', '.join(map(str, x))})" for x in topics_to_merge]
+            print(f'Merge topic pairs {", ".join(pairs)}')
+        else:
+            pairs = ', '.join(map(str, topics_to_merge))
+            print(f'Merge the topic pair ({pairs})')
+
         self.topic_model.merge_topics(docs, topics_to_merge)
         # update custom labels
         self.set_custom_labels(name=name)
