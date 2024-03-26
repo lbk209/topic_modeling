@@ -120,7 +120,7 @@ class utils():
         return var_arg
 
 
-    def print_topic_info(self, save=False, path='.', 
+    def print_topic_info(self, save=False, path='.',
                          docs=None, classes_docs=None):
         """
         print number of topics and percentage of outliers
@@ -150,7 +150,7 @@ class utils():
             f = f'{path}/df_topic_info.csv'
             df_topic_info.to_csv(f, index=False)
             print(f'{f} saved.')
-        
+
         return df_topic_info
 
 
@@ -246,13 +246,6 @@ class utils():
             print('ERROR!: docs required to merge topics')
             return None
 
-        if isinstance(topics_to_merge[0], list):
-            pairs = [f"({', '.join(map(str, x))})" for x in topics_to_merge]
-            print(f'Merge topic pairs {", ".join(pairs)}')
-        else:
-            pairs = ', '.join(map(str, topics_to_merge))
-            print(f'Merge the topic pair ({pairs})')
-
         self.topic_model.merge_topics(docs, topics_to_merge)
         # update custom labels
         self.set_custom_labels(name=name)
@@ -294,11 +287,14 @@ class utils():
         self.topic_model.set_topic_labels(labels)
 
         if self.count_children > 0:
-            print('WARNING: create the children instances again such as visualize, multi_topics_stats or multi_topics_sentiment.')
+            print('WARNING: create the children instances again such as visualize.')
         #return topic_model
 
 
     def calc_topic_similarity(self, aspect=None):
+        """
+        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim
+        """
         topic_model = self.topic_model
         distance_matrix = cosine_similarity(np.array(topic_model.topic_embeddings_))
 
@@ -340,11 +336,7 @@ class utils():
 
     def check_similarity(self, aspect=None, min_distance=0.8,
                          embedding_model=None, pytorch_cos_sim=None):
-        """
-        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim, 
-         which is to be given as arg to avoid import sentence_transformers package.
-         it might be same as cosine_similarity of sklearn or not.
-        """
+
         pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
@@ -471,7 +463,7 @@ class utils():
 
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
         df_topic_info = topic_model.get_topic_info()
-        return multi_topics_stats(*args_distr, df_topic_info=df_topic_info, 
+        return multi_topics_stats(*args_distr, df_topic_info=df_topic_info,
                                   col_class=col_class, classes_docs=classes_docs)
 
 
@@ -944,7 +936,7 @@ class param_study():
 
 
 class multi_topics_stats():
-    def __init__(self, topic_distr, topic_token_distr, df_topic_info=None, 
+    def __init__(self, topic_distr, topic_token_distr, df_topic_info=None,
                  col_class=None, classes_docs=None):
         # A n x m matrix containing the topic distributions for all input documents
         #  with n being the documents and m the topics
@@ -1135,7 +1127,7 @@ class multi_topics_stats():
         """
         get df of topic, docu id and class.
          count of id is num of all subsentences, which is greater than num of docs(nunique of id).
-        df_data: dataframe of docs 'id' and additional info (such as document class) of docs to add multi_topics_df. 
+        df_data: dataframe of docs 'id' and additional info (such as document class) of docs to add multi_topics_df.
         sentiment: None, True, False. None to use self.sentiment
         sentiment_func: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
@@ -1222,7 +1214,7 @@ class multi_topics_stats():
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def create_multi_topics_stats(self, col_class=None, classes_docs=None, 
+    def create_multi_topics_stats(self, col_class=None, classes_docs=None,
                                   alpha=0.05, warning_ztest_r=0.2,
                                   threshold=0, # see get_multi_topics_df
                                   sentiment=None, sentiment_func=None, docs=None):
@@ -1239,9 +1231,9 @@ class multi_topics_stats():
         if classes_docs is None:
             print('ERROR: Set classes of docs.')
             return None
-        
+
         df_data = pd.DataFrame({col_class: classes_docs}).rename_axis('id').reset_index()
-        
+
         # check and set sentiment
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment is not None:
@@ -1678,7 +1670,7 @@ class multi_topics_stats():
                 if col_class not in multi_topics_df.columns:
                     print(f'ERROR: No {col_class} in multi_topics_df.')
                     return None
-                
+
             cond = cond & multi_topics_df[col_class].str.lower().str.contains(class_name.lower())
 
         topic_docs = [docs[x] for x in multi_topics_df.loc[cond].id.unique()]
