@@ -528,17 +528,59 @@ class visualize():
                                         reduced_embeddings=self.reduced_embeddings, **kwargs)
 
 
-    def hierarchy(self, docs=None, **kwargs):
-        docs = self._check_var(docs, self.docs)
-        if docs is None:
-            print('ERROR!: No docs assigned')
-            return None
-
-        # Extract hierarchical topics and their representations
-        self.hierarchical_topics = self.topic_model.hierarchical_topics(docs)
+    def hierarchy(self, topics=None, docs=None, **kwargs):
+        """
+        kwargs: keyword args for BERTopic.visualize_hierarchy such as top_n_topics
+        """
+        hierarchical_topics = self._get_hierarchical_topics(docs=docs)
 
         # Visualize these representations
-        return self.topic_model.visualize_hierarchy(hierarchical_topics=self.hierarchical_topics, **kwargs)
+        return self.topic_model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, 
+                                                    topics=topics, **kwargs)
+
+
+    def topic_tree(self, topics=None, docs=None, 
+                   rex = r'Topic\s*:\s*(\d+)', topics_in_tree=None,
+                   **kwargs):
+        """
+        kwargs: keyword args for BERTopic.get_topic_tree such as tight_layout
+        topics_in_tree: 'all', 'any', None
+        """
+        hierarchical_topics = self._get_hierarchical_topics(docs=docs)
+        if isinstance(topics, (list, tuple)):
+            df = hierarchical_topics.loc[hierarchical_topics.apply(lambda x: len(set(topics) - set(x.Topics)) == 0, axis=1)]
+        else:
+            df = hierarchical_topics
+
+        tree = self.topic_model.get_topic_tree(df, **kwargs)
+
+        if topics_in_tree is None:
+            print(tree)
+        else:
+            topics_tree = re.findall(rex, tree, re.IGNORECASE)
+            topics_tree = [int(x) for x in topics_tree]
+            n = len(set(topics) - set(topics_tree))
+
+            if topics_in_tree == 'all' and n == 0:
+                print(tree)
+            elif topics_in_tree == 'any' and n < len(topics):
+                print(tree)
+            else:
+                print(f'No direct relation between Topics {topics}.')
+                
+
+    def _get_hierarchical_topics(self, docs=None, **kwargs):
+        """
+        kwargs: keyword args for BERTopic.hierarchical_topics
+        """
+        if self.hierarchical_topics is None:
+            docs = self._check_var(docs, self.docs)
+            if docs is None:
+                print('ERROR!: No docs to create a hierarchy of topics')
+                return None
+            # Extract hierarchical topics and their representations
+            self.hierarchical_topics = self.topic_model.hierarchical_topics(docs)
+        return self.hierarchical_topics
 
 
     def barchart(self, **kwargs):
@@ -1385,6 +1427,8 @@ class multi_topics_stats():
                                     margin_width=200,
                                     margin_height=100,
                                     tickangle=30,
+                                    # file name with path. create file in working dir if no path exits
+                                    filename='None' #'reds1/distr_heatmap'
                                    ):
         df_topic_info = self._check_var(df_topic_info, self.df_topic_info)
         if df_topic_info is None:
@@ -1480,6 +1524,15 @@ class multi_topics_stats():
         )
 
         fig.show()
+
+        # save fig as json
+        if filename is not None:
+            path = '/'.join(filename.split('/')[:-1])
+            if not os.path.isdir(path):
+                # to save on working dir
+                filename = filename.split('/')[-1]
+            f = f'{filename}.json'
+            pio.write_json(fig, f)
 
 
     def get_color_significance(self, rel):
