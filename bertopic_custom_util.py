@@ -112,6 +112,7 @@ class utils():
         self.reduced_embeddings = reduced_embeddings
         self.docs = docs
         self.count_children = 0
+        self.df_similarity = None # see check_similarity
 
 
     def _check_var(self, var_arg, var_self):
@@ -339,12 +340,19 @@ class utils():
 
 
     def check_similarity(self, aspect=None, min_distance=0.8,
-                         embedding_model=None, pytorch_cos_sim=None):
+                         embedding_model=None, pytorch_cos_sim=None,
+                         loc_cond=None):
         """
         pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim, 
          which is to be given as arg to avoid import sentence_transformers package.
          it might be same as cosine_similarity of sklearn or not.
+        loc_cond: by which rows of self.df_similarity is to select
         """
+        
+        result = self._filter_similarity(loc_cond)
+        if result is not None:
+            return result
+        
         pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
@@ -357,19 +365,33 @@ class utils():
                                              , how='right')
             # sort columns to set the labels at the end
             pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'similarity')]
-        return pair_dist_df
+        
+        #self.df_similarity = pair_dist_df
+        #return pair_dist_df
+        
+        # list of topic pairs
+        pairs = pair_dist_df.apply(lambda x: [x.topic1, x.topic2], axis=1).to_list()
+        self.df_similarity = pair_dist_df
+        
+        return (pair_dist_df, pairs)
 
 
     def similarity_by_class(self, multi_topics_stats_df,
                             min_rs = 0.8, err_slope = 0.3,
                             col_class="wine", col_topic="topic_id", col_value='topic_wine_share',
-                            aspect=None, embedding_model=None, pytorch_cos_sim=None):
+                            aspect=None, embedding_model=None, pytorch_cos_sim=None,
+                            loc_cond=None):
         """
         multi_topics_stats_df: multi_topics_stats.multi_topics_stats_df
         min_rs: min r-squared
         err_slope: delta for error of regression slope
         kwargs_similarity: inputs of check_similarity
         """
+        
+        result = self._filter_similarity(loc_cond)
+        if result is not None:
+            return result
+        
         cond = (multi_topics_stats_df.topic_id > -1)
         cols = [col_class, col_value, col_topic]
         topics_by_class = (multi_topics_stats_df.loc[cond, cols]
@@ -414,8 +436,31 @@ class utils():
                                              .rename('label similarity')
                                              , how='right')
             pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'label similarity')]
-        return pair_dist_df.sort_values('distance', ascending = False)
+        
+        pair_dist_df = pair_dist_df.sort_values('distance', ascending = False)
+        
+        # list of topic pairs
+        pairs = pair_dist_df.apply(lambda x: [x.topic1, x.topic2], axis=1).to_list()
+        self.df_similarity = pair_dist_df
+        return (pair_dist_df, pairs)
 
+        
+    def _filter_similarity(self, loc_cond):
+        if loc_cond is None:
+            result = None
+        else:
+            pair_dist_df = self.df_similarity
+            if pair_dist_df is None:
+                result = None
+            else:
+                try:
+                    pair_dist_df = pair_dist_df.loc[loc_cond]
+                    pairs = pair_dist_df.apply(lambda x: [x.topic1, x.topic2], axis=1).to_list()
+                    result = (pair_dist_df, pairs)
+                except:
+                    result = None
+        return result
+        
 
     def calc_score(self, aspect='KeyBERT', tid=None):
         """
