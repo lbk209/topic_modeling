@@ -50,7 +50,7 @@ debug = True
 line_height = "150%"
 docs_height = "160px"
 
-# get json file list
+# get list of json files like distr_toipcXX.json 
 fig_files = [x for x in os.listdir(fig_path) if x.startswith(fig_prfx) and x.endswith('json')]
 fig_files = sorted(fig_files)
 
