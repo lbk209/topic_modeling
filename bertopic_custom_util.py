@@ -121,7 +121,7 @@ class utils():
         return var_arg
 
 
-    def print_topic_info(self, save=False, path='.', 
+    def print_topic_info(self, save=False, path='.',
                          docs=None, classes_docs=None):
         """
         print number of topics and percentage of outliers
@@ -151,7 +151,7 @@ class utils():
             f = f'{path}/df_topic_info.csv'
             df_topic_info.to_csv(f, index=False)
             print(f'{f} saved.')
-        
+
         return df_topic_info
 
 
@@ -344,17 +344,17 @@ class utils():
                          loc_cond=None):
         """
         return df of similarity if loc_cond is None, topic pairs of selected rows by loc_cond if it's not None
-        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim, 
+        pytorch_cos_sim: sentence_transformers.util.pytorch_cos_sim,
          which is to be given as arg to avoid import sentence_transformers package.
          it might be same as cosine_similarity of sklearn or not.
-        loc_cond: by which rows of self.df_similarity is to select. 
+        loc_cond: by which rows of self.df_similarity is to select.
          set to 'all' to get topic pairs from all rows of df_similarity
         """
-        
+
         result = self._get_pairs_of_similarity(loc_cond)
         if result is not None:
             return result
-        
+
         pair_dist_df = self.calc_topic_similarity(aspect)
 
         if (embedding_model is not None) and (pytorch_cos_sim is not None):
@@ -367,7 +367,7 @@ class utils():
                                              , how='right')
             # sort columns to set the labels at the end
             pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'similarity')]
-        
+
         self.df_similarity = pair_dist_df
         return pair_dist_df
 
@@ -381,17 +381,17 @@ class utils():
         return df of similarity if loc_cond is None, topic pairs of selected rows by loc_cond if it's not None
         multi_topics_stats_df: multi_topics_stats.multi_topics_stats_df
         min_rs: min r-squared
-        err_slope: delta for error of regression slope
+        err_slope: error to 1 of regression slope
         kwargs_similarity: inputs of check_similarity
         """
-        
+
         pairs = self._get_pairs_of_similarity(loc_cond)
         if pairs is not None:
             return pairs
         else:
             if multi_topics_stats_df is None:
                 print('ERROR: missing multi_topics_stats_df')
-        
+
         cond = (multi_topics_stats_df.topic_id > -1)
         cols = [col_class, col_value, col_topic]
         topics_by_class = (multi_topics_stats_df.loc[cond, cols]
@@ -406,18 +406,25 @@ class utils():
 
         pairs = []
         params = []
+        list_rs = []
+        list_err = []
         for p in itertools.combinations(topics_by_class, 2):
             X = topics_by_class[p[0]]
             Y = topics_by_class[p[1]]
             results = get_rsquared(X, Y)
-
-            if results.rsquared >= min_rs:
-                if 1-err_slope < results.params[1] < 1+err_slope:
+            rsq = results.rsquared
+            err = abs(results.params[1] - 1)
+            if rsq >= min_rs:
+                #if 1-err_slope < slope < 1+err_slope:
+                if err < err_slope:
                     pairs.append(set(p))
                     params.append(results.params)
+            list_rs.append(rsq)
+            list_err.append(err)
 
         if len(pairs) == 0:
-            print(f'No topic set with min r-squared {min_rs} & slope delta {err_slope}.')
+            #print(f'No topic set with min r-squared {min_rs} & slope delta {err_slope}.')
+            print(f'No topic set found (max r-squared {max(list_rs):.3f}.')
             return None
 
         pairs = [sorted(x) for x in pairs]
@@ -436,13 +443,13 @@ class utils():
                                              .rename('label similarity')
                                              , how='right')
             pair_dist_df = pair_dist_df[pair_dist_df.columns[:-1].insert(3, 'label similarity')]
-        
+
         pair_dist_df = pair_dist_df.sort_values('distance', ascending = False)
-        
+
         self.df_similarity = pair_dist_df
         return pair_dist_df
 
-        
+
     def _get_pairs_of_similarity(self, loc_cond):
         """
         get topic pairs of selected rows by loc_cond
@@ -464,7 +471,7 @@ class utils():
                 except:
                     pairs = None
         return pairs
-        
+
 
     def calc_score(self, aspect='KeyBERT', tid=None):
         """
@@ -520,7 +527,7 @@ class utils():
 
         args_distr = topic_model.approximate_distribution(docs, calculate_tokens=True)
         df_topic_info = topic_model.get_topic_info()
-        return multi_topics_stats(*args_distr, df_topic_info=df_topic_info, 
+        return multi_topics_stats(*args_distr, df_topic_info=df_topic_info,
                                   col_class=col_class, classes_docs=classes_docs)
 
 
@@ -584,11 +591,11 @@ class visualize():
         hierarchical_topics = self._get_hierarchical_topics(docs=docs)
 
         # Visualize these representations
-        return self.topic_model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, 
+        return self.topic_model.visualize_hierarchy(hierarchical_topics=hierarchical_topics,
                                                     topics=topics, **kwargs)
 
 
-    def topic_tree(self, topics=None, docs=None, 
+    def topic_tree(self, topics=None, docs=None,
                    rex = r'Topic\s*:\s*(\d+)', topics_in_tree=None,
                    **kwargs):
         """
@@ -616,7 +623,7 @@ class visualize():
                 print(tree)
             else:
                 print(f'No direct relation between Topics {topics}.')
-                
+
 
     def _get_hierarchical_topics(self, docs=None, **kwargs):
         """
@@ -1035,7 +1042,7 @@ class param_study():
 
 
 class multi_topics_stats():
-    def __init__(self, topic_distr, topic_token_distr, df_topic_info=None, 
+    def __init__(self, topic_distr, topic_token_distr, df_topic_info=None,
                  col_class=None, classes_docs=None):
         # A n x m matrix containing the topic distributions for all input documents
         #  with n being the documents and m the topics
@@ -1226,7 +1233,7 @@ class multi_topics_stats():
         """
         get df of topic, docu id and class.
          count of id is num of all subsentences, which is greater than num of docs(nunique of id).
-        df_data: dataframe of docs 'id' and additional info (such as document class) of docs to add multi_topics_df. 
+        df_data: dataframe of docs 'id' and additional info (such as document class) of docs to add multi_topics_df.
         sentiment: None, True, False. None to use self.sentiment
         sentiment_func: get doc, topic_distr and topic_token_distr of the doc, topics for subsentences of the doc as input
         """
@@ -1313,7 +1320,7 @@ class multi_topics_stats():
         return top_multi_topics_df.sort_values('id', ascending = False).rename(columns={'id': 'freq'})
 
 
-    def create_multi_topics_stats(self, col_class=None, classes_docs=None, 
+    def create_multi_topics_stats(self, col_class=None, classes_docs=None,
                                   alpha=0.05, warning_ztest_r=0.2,
                                   threshold=0, # see get_multi_topics_df
                                   sentiment=None, sentiment_func=None, docs=None):
@@ -1330,9 +1337,9 @@ class multi_topics_stats():
         if classes_docs is None:
             print('ERROR: Set classes of docs.')
             return None
-        
+
         df_data = pd.DataFrame({col_class: classes_docs}).rename_axis('id').reset_index()
-        
+
         # check and set sentiment
         sentiment = self._check_var(sentiment, self.sentiment)
         if sentiment is not None:
@@ -1780,7 +1787,7 @@ class multi_topics_stats():
                 if col_class not in multi_topics_df.columns:
                     print(f'ERROR: No {col_class} in multi_topics_df.')
                     return None
-                
+
             cond = cond & multi_topics_df[col_class].str.lower().str.contains(class_name.lower())
 
         topic_docs = [docs[x] for x in multi_topics_df.loc[cond].id.unique()]
