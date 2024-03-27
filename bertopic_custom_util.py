@@ -424,7 +424,7 @@ class utils():
 
         if len(pairs) == 0:
             #print(f'No topic set with min r-squared {min_rs} & slope delta {err_slope}.')
-            print(f'No topic set found (max r-squared {max(list_rs):.3f}.')
+            print(f'No topic set found (max r-squared {max(list_rs):.3f}).')
             return None
 
         pairs = [sorted(x) for x in pairs]
