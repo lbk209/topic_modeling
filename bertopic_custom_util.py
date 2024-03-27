@@ -1472,7 +1472,7 @@ class multi_topics_stats():
 
 
     def topic_distribution_by_class(self,
-                                    # list of topics or number of topics in ascending order to plot
+                                    # list of topics or number of topics in ascending order of max share to plot
                                     topics = None, 
                                     top_n_words = 3, # top_n_words of topic for fig label
                                     df_topic_info=None,
@@ -1513,10 +1513,8 @@ class multi_topics_stats():
         
         # topic choice for plot
         cond = (df_hm.topic_id > -1)
-        if topics is not None:
-            if isinstance(topics, int):
-                topics = range(topics)
-        cond = cond & (df_hm.topic_id.isin(topics))
+        if isinstance(topics, list):
+            cond = cond & (df_hm.topic_id.isin(topics))
 
         # define img for plot
         img = (df_hm
@@ -1530,6 +1528,8 @@ class multi_topics_stats():
             .assign(max_share=img[cols_share].max(axis=1))
             .sort_values('max_share', ascending=False)
         )
+        if isinstance(topics, int):
+            img = img.head(topics)
 
         # create parts of customdata for hover
         label_h = img.hover.to_list()
