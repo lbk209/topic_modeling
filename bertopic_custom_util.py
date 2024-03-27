@@ -1472,8 +1472,9 @@ class multi_topics_stats():
 
 
     def topic_distribution_by_class(self,
-                                    num_topics = 10, # num of topics to plot
-                                    top_n_words = 3, # top_n_words for label
+                                    # list of topics or number of topics in ascending order to plot
+                                    topics = None, 
+                                    top_n_words = 3, # top_n_words of topic for fig label
                                     df_topic_info=None,
                                     aspect=None,
                                     class_order_ascending = None,
@@ -1509,10 +1510,15 @@ class multi_topics_stats():
         df = df_topic_info.set_index('Topic')[[aspect]]
         topic_label = (df.apply(func, args=(top_n_words,), axis=1).to_frame('label')
                         .assign(hover=df.apply(func, args=(-1,), axis=1)))
+        
+        # topic choice for plot
+        cond = (df_hm.topic_id > -1)
+        if topics is not None:
+            if isinstance(topics, int):
+                topics = range(topics)
+        cond = cond & (df_hm.topic_id.isin(topics))
 
         # define img for plot
-        cond = df_hm.topic_id <= num_topics
-        cond = cond & (df_hm.topic_id > -1)
         img = (df_hm
                .loc[cond]
                .pivot(index='topic_id', columns=f'{col_class}', values=[f'topic_{col_class}_share', 'diff_significance_total'])
