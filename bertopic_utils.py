@@ -1458,7 +1458,7 @@ class multi_topics_stats():
         func = lambda x, i: f'{x.name}_'+'_'.join(x[0][:i])
         df = df_topic_info.set_index('Topic')[[aspect]]
         topic_label = (df.apply(func, args=(top_n_words,), axis=1).to_frame('label')
-                        .assign(hover=df.apply(func, args=(-1,), axis=1)))
+                        .assign(hover=df.apply(func, args=(99,), axis=1))) # full label for hover
         
         # topic choice for plot
         cond = (df_hm.topic_id > -1)
