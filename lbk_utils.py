@@ -92,16 +92,13 @@ class SemanticSearch():
             return None
 
         vocabulary = self.vocabulary
-        top_k = min(top_k, len(vocabulary))
-        if top_k > top_k_max:
-            top_k = top_k_max
-
+        top_k = min(top_k, top_k_max, len(vocabulary))
         queries_embedding = self.encode(queries)
 
         # use cosine-similarity and torch.topk to find the highest 5 scores
         cos_scores = stutil.cos_sim(queries_embedding, self.voca_embeddings)
         # top_results[0] top_k scores for each query in queries
-        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
+        top_results = torch.topk(cos_scores, k=top_k)
 
         result = dict()
         result['word'] = [[vocabulary[i] for i in x] for x in top_results[1]]
@@ -112,6 +109,10 @@ class SemanticSearch():
 
     def search(self, queries, threshold=0.7, top_k_max=100,
                exclude_no_result=True, print_out=True, sort_result=True):
+        
+        if isinstance(queries, str):
+            queries = [queries]
+
         res_k = self.search_k(queries, top_k=top_k_max)
         if res_k is None:
             return None
