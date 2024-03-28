@@ -99,7 +99,7 @@ class utils():
                 .apply(str))
 
         if save:
-            save_csv(df, 'df_topic_info.csv', path, index=False, print_out=True)
+            save_csv(df_topic_info, 'df_topic_info.csv', path, index=False, print_out=True)
 
         return df_topic_info
 
