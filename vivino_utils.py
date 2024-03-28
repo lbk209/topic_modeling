@@ -1,27 +1,23 @@
-# selenium의 webdriver를 사용하기 위한 import
-from selenium import webdriver
-
-# selenium으로 키를 조작하기 위한 import
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-
-from selenium.common.exceptions import ElementNotVisibleException, StaleElementReferenceException, NoSuchElementException
-
-# 페이지 로딩을 기다리는데에 사용할 time 모듈 import
-import time
-
+import os, time
 import pandas as pd 
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime
 
-import os
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import ElementNotVisibleException, StaleElementReferenceException, NoSuchElementException
 
-from sentence_transformers import SentenceTransformer
-from sentence_transformers import util as stutil
-import torch
+import langdetect
+import json
+from deep_translator import GoogleTranslator
+
+
+from lbk_utils import SemanticSearch, save_csv
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 WINE_STYLE = {
     'red': ['cabernet sauvignon', 'shiraz', 'syrah', 'pinot noir', 'merlot', 'carmenere', 'malbec'],
@@ -218,29 +214,12 @@ def concat_reviews(df_reviews, df, wine_name, col_rev, path=None, id_start=0):
     wine_id = generate_wine_id(df_reviews, id_start=id_start)
     df[['wid', 'wine']] = [wine_id, wine_name]
     df = df.reindex(columns=col_rev)
+
     if path is not None:
-        f = f'{path}/wine_{wine_id}.csv'
-        df.to_csv(f, index=False)
-        print(f'{f} saved.')
+        save_csv(df, f'wine_{wine_id}.csv', path, index=False, print_out=True)
+
     df_reviews = pd.concat([df_reviews if not df_reviews.empty else None, df])
     return df_reviews
-
-
-def save_reviews(df_review, file, path='data', overwrite=False):
-    f = f'{path}/{file}'
-    if os.path.exists(f) and not overwrite:
-        print(f'ERROR: {f} already exists')
-    else:
-        df_review.to_csv(f, index=False)
-        print(f'{f} saved.')
-    return None
-
-
-def load_reviews(file, path='data'):
-    f = f'{path}/{file}'
-    df = pd.read_csv(f, parse_dates=['date'])
-    print(f'{f} loaded.')
-    return df
 
 
 def check_url(wines, print_parts=True, split='/', st_id='all-MiniLM-L6-v2', min_score=0):
@@ -304,107 +283,54 @@ def find_style(wines, style_dict=WINE_STYLE):
     return df_style
 
 
+def simple_scraper(url, *elements, by=By.CLASS_NAME, driver=None, quit_driver=True):
+    if driver is None:
+        driver = webdriver.Chrome() 
+        driver.get(url)
+        time.sleep(2)
 
-class SemanticSearch():
-    def __init__(self, vocabulary=None, embedding_model='all-MiniLM-L6-v2'):
-        """
-        vocabulary: list of words
-        """
-        if isinstance(embedding_model, str):
-            embedding_model = SentenceTransformer(embedding_model)
-        self.encode = lambda x: embedding_model.encode(x, convert_to_tensor=True)
-        self.vocabulary = vocabulary
-        if vocabulary is not None:
-            self.voca_embeddings = self.encode(vocabulary)
-            
+    result = dict()
+    for e in elements:
+        l = driver.find_elements(by, e)
+        result[e] = [x.text for x in l]
 
-    def search(self, queries, top_k=3, top_k_max=100):
-        """
-        search the queries in big self.vocabulary
-        queries: a query word or list of queries
-        """
-        if self.vocabulary is None:
-            print('ERROR: Init with vocabulary first')
-            return None
-        
-        vocabulary = self.vocabulary
-        top_k = min(top_k, len(vocabulary))
-        if top_k > top_k_max:
-            top_k = top_k_max
-        
-        queries_embedding = self.encode(queries)
-
-        # use cosine-similarity and torch.topk to find the highest 5 scores
-        cos_scores = stutil.cos_sim(queries_embedding, self.voca_embeddings)
-        # top_results[0] top_k scores for each query in queries  
-        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
-
-        result = dict()
-        result['word'] = [[vocabulary[i] for i in x] for x in top_results[1]]
-        result['score'] = top_results[0].tolist()
-
-        return result
-        
-
-    def check_existence(self, queries, threshold=0.5, top_k_max=10,
-                        return_new=True, print_out=True, sort=True):
-        """
-        check if the items in queries exit in self.vocabulary
-        queries: a query word or list of queries
-        """
-        result = self.search(queries, top_k=top_k_max)
-        if result is None:
-            return None
-
-        words_existing = {}
-        words_new = {}
-        for i, q in enumerate(queries):
-            score = result['score'][i][0]
-            word = result['word'][i][0]
-            if score >= threshold:
-                words_existing[q] = [word, round(score, 3)]
-            else:
-                words_new[q] = [word, round(score, 3)]
+    if quit_driver:
+        driver.quit()
+    
+    return (result, driver)
 
 
-        df_existing = pd.DataFrame.from_dict(words_existing, orient='index', columns=['result', 'score']).rename_axis('query')
-        df_new = pd.DataFrame.from_dict(words_new, orient='index', columns=['result', 'score']).rename_axis('query')
-        if sort:
-            df_existing = df_existing.sort_values('score', ascending=False)
-            df_new = df_new.sort_values('score', ascending=False)
-        df_existing = df_existing.reset_index()
-        df_new = df_new.reset_index()
-        
-        lf = ''
-        if print_out:
-            if len(df_existing) > 0:
-                print('Existing words (query: result)')
-                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_existing.iterrows()]
-                lf = '\n'
-                
-            if len(df_new) > 0:
-                print(f'{lf}New words (query: result)')
-                _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_new.iterrows()]
-                lf = '\n'
+def detect_language(text):
+    try:
+        return langdetect.detect(text)
+    except KeyboardInterrupt as e:
+        raise(e)
+    except:
+        return '<-- ERROR -->'
 
-        if return_new:
-            print(f'{lf}Returning new words')
-            return df_new
-        else:
-            print(f'{lf}Returning existing words')
-            return df_existing
-        
 
-    def quick(self, query, voca_small):
-        """
-        search the query in voca_small which is to be redefined in a loop
-        query: str
-        """
-        encode = self.encode
-        if not isinstance(voca_small, list):
-            voca_small = [voca_small]
-        scores = [stutil.pytorch_cos_sim(encode(query), encode(x)) for x in voca_small]
-        maxscore = max(scores).item()
-        word = voca_small[scores.index(maxscore)]
-        #return {word: maxscore}
-        return (word, maxscore)
+def get_translation(text):
+    try:
+        return GoogleTranslator(source='auto', target='en').translate(str(text))
+    except KeyboardInterrupt as e:
+        raise(e)
+    except:
+        return '<-- ERROR -->'
+
+
+def translate_reviews(df, col='review', merge=True):
+    df = df.reset_index(drop=True)
+    
+    tmp_data = []
+    for rec in tqdm(df.to_dict('records')):
+        tmp_data.append({
+            #'wid': rec['wid'],
+            'lang': detect_language(rec[col]),
+            f'{col}_transl': get_translation(rec[col])
+        })
+
+    df_trans = pd.DataFrame(tmp_data)
+    if merge:
+        df_trans = df.merge(df_trans, left_index=True, right_index=True)
+
+    return df_trans

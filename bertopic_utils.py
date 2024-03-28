@@ -1,76 +1,27 @@
-import collections
-import os, re
+import os, re, collections
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 
+from tqdm import tqdm
 from typing import List, Union
+from itertools import combinations
 
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from plotly.colors import qualitative as color_qual
-import plotly.io as pio
-
-from itertools import combinations
+import statsmodels.api as smapi
 from statsmodels.stats.proportion import proportions_ztest
 
-import statsmodels.api as smapi
-import itertools
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
+from plotly.subplots import make_subplots
+from plotly.colors import qualitative as color_qual
+
+from lbk_utils import split_str, read_csv, save_csv, println
+
 
 SENTIMENT_LABELS = ['positive', 'neutral', 'negative']
-
-
-def read_csv(file, path_data, cols_eval=None, **kwargs):
-    """
-    kwargs: keyword args for pd.read_csv
-    """
-    files = [x for x in os.listdir(path_data) if x.startswith(file)]
-
-    if len(files) == 0:
-        print('ERROR!: No csv to read')
-        return None
-
-    if cols_eval is None:
-        converters=None
-    else:
-        if not isinstance(cols_eval, list):
-            cols_eval = [cols_eval]
-        converters= {c: lambda x: eval(x) for c in cols_eval}
-
-    df_reviews = pd.DataFrame()
-    for f in files:
-        try:
-            df = pd.read_csv(f'{path_data}/{f}', converters=converters, **kwargs)
-            df_reviews = pd.concat([df_reviews, df])
-        except SyntaxError:
-            print('ERROR: check converters arg first.')
-            return None
-
-    return df_reviews.reset_index(drop=True)
-
-
-def split_str(string, length=50, split='\n', indent=''):
-    words = string.split()
-
-    words_split = ''
-    current_length = 0
-    for i, word in enumerate(words):
-        if current_length + len(word) <= length:
-            words_split += f'{word} '
-            current_length += len(word) + 1  # +1 for the space
-        else:
-            words_split += f'{split}{indent}{word} '
-            current_length = len(word) + len(indent) + 1
-    return words_split
-
-
-def print_with_line_feed(input_string, line_length=50, split='\n', indent='  '):
-    ws = split_str(input_string, length=line_length, split=split, indent=indent)
-    print(ws)
 
 
 def check_topic_aspect(df_topic_info, aspect, aspect_default='Representation', start_idx=3, warning=True):
@@ -148,9 +99,7 @@ class utils():
                 .apply(str))
 
         if save:
-            f = f'{path}/df_topic_info.csv'
-            df_topic_info.to_csv(f, index=False)
-            print(f'{f} saved.')
+            save_csv(df_topic_info, 'df_topic_info.csv', path, index=False, print_out=True)
 
         return df_topic_info
 
@@ -181,7 +130,7 @@ class utils():
         dict_label = {k: ', '.join(v) if isinstance(v, (list, tuple)) else v for k, v in dict_label.items()}
 
         if print_labels:
-            _ = [print_with_line_feed(f'{k}: {v}', length) for k,v in dict_label.items()]
+            _ = [println(f'{k}: {v}', length) for k,v in dict_label.items()]
 
         return dict_label
 
@@ -199,7 +148,7 @@ class utils():
             rep_docs = {k: v for k, v in rep_docs.items() if k in list_tid}
 
         for i, (k, v) in enumerate(rep_docs.items()):
-            _ = [print_with_line_feed(f'{k}-{x}: {y}', length) for x, y in enumerate(v)]
+            _ = [println(f'{k}-{x}: {y}', length) for x, y in enumerate(v)]
             if i > max_topics:
                 print(f'the docs of {max_topics} topics printed.')
                 break
@@ -234,7 +183,7 @@ class utils():
 
             topic_to_label = self.get_topic_labels(aspect=aspect, print_labels=False)
             print(f'Topic {topic}: {topic_to_label[topic]}')
-            _ = [print_with_line_feed(f'-. {x}', length_print, indent='') for x in docs_print]
+            _ = [println(f'-. {x}', length_print, indent='') for x in docs_print]
 
         return topic_docs
 
@@ -408,7 +357,7 @@ class utils():
         params = []
         list_rs = []
         list_err = []
-        for p in itertools.combinations(topics_by_class, 2):
+        for p in combinations(topics_by_class, 2):
             X = topics_by_class[p[0]]
             Y = topics_by_class[p[1]]
             results = get_rsquared(X, Y)
@@ -1509,7 +1458,7 @@ class multi_topics_stats():
         func = lambda x, i: f'{x.name}_'+'_'.join(x[0][:i])
         df = df_topic_info.set_index('Topic')[[aspect]]
         topic_label = (df.apply(func, args=(top_n_words,), axis=1).to_frame('label')
-                        .assign(hover=df.apply(func, args=(-1,), axis=1)))
+                        .assign(hover=df.apply(func, args=(99,), axis=1))) # full label for hover
         
         # topic choice for plot
         cond = (df_hm.topic_id > -1)
@@ -1817,7 +1766,7 @@ class multi_topics_stats():
                 docs_print = topic_docs
 
             print(f'Topic {topic}: {topic_name}')
-            _ = [print_with_line_feed(f'-. {x}', length_print, indent='') for x in docs_print]
+            _ = [println(f'-. {x}', length_print, indent='') for x in docs_print]
 
         return topic_docs
 

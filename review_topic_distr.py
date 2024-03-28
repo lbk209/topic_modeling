@@ -1,17 +1,18 @@
 # Import packages
 from dash import Dash, html, dcc, callback, Output, Input, State, no_update
+import dash_bootstrap_components as dbc
+
 import plotly.express as px
 import plotly.io as pio
-import dash_bootstrap_components as dbc
-import sys
-import io, re, os
+import sys, io, re, os
 import base64
 import argparse
-
-from bertopic_custom_util import read_csv
-
 import warnings
 import pandas as pd
+
+from bertopic_utils import read_csv
+
+
 # Suppress FutureWarning messages
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -74,7 +75,7 @@ options = [{'label':html.Span(f'Topic {t}', style={"padding-left": 10}),
 topic_info = None
 if df_topic_infos is not None:
     # None if no file exists
-    df_topic_infos = read_csv(df_topic_infos, path_data=fig_path)
+    df_topic_infos = read_csv(df_topic_infos, fig_path)
 
     if df_topic_infos is not None:
         try:
