@@ -69,7 +69,6 @@ def println(input_string, line_length=50, split='\n', indent='  '):
     print(ws)
     
     
-    
 class SemanticSearch():
     def __init__(self, vocabulary=None, embedding_model='all-MiniLM-L6-v2'):
         """
@@ -81,9 +80,9 @@ class SemanticSearch():
         self.vocabulary = vocabulary
         if vocabulary is not None:
             self.voca_embeddings = self.encode(vocabulary)
-            
 
-    def search(self, queries, top_k=3, top_k_max=100):
+
+    def search_k(self, queries, top_k=3, top_k_max=100):
         """
         search the queries in big self.vocabulary
         queries: a query word or list of queries
@@ -91,17 +90,17 @@ class SemanticSearch():
         if self.vocabulary is None:
             print('ERROR: Init with vocabulary first')
             return None
-        
+
         vocabulary = self.vocabulary
         top_k = min(top_k, len(vocabulary))
         if top_k > top_k_max:
             top_k = top_k_max
-        
+
         queries_embedding = self.encode(queries)
 
         # use cosine-similarity and torch.topk to find the highest 5 scores
         cos_scores = stutil.cos_sim(queries_embedding, self.voca_embeddings)
-        # top_results[0] top_k scores for each query in queries  
+        # top_results[0] top_k scores for each query in queries
         top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
 
         result = dict()
@@ -109,7 +108,30 @@ class SemanticSearch():
         result['score'] = top_results[0].tolist()
 
         return result
-        
+
+
+    def search(self, queries, threshold=0.7, top_k_max=100,
+               exclude_no_result=True, print_out=True, sort_result=True):
+        res_k = self.search_k(queries, top_k=top_k_max)
+        if res_k is None:
+            return None
+
+        result = dict()
+        for i, q in enumerate(queries):
+            result[q] = [w for w,s in zip(res_k['word'][i], res_k['score'][i]) if s >= threshold]
+
+        if exclude_no_result:
+            result = {k:v for k,v in result.items() if len(v) > 0}
+
+        if sort_result:
+            #result = sorted(result)
+            pass
+
+        if print_out:
+            _ = [print(f'{k}: {", ".join(v)}') for k,v in result.items()]
+
+        return result
+
 
     def check_existence(self, queries, threshold=0.5, top_k_max=10,
                         return_new=True, print_out=True, sort=True):
@@ -139,14 +161,14 @@ class SemanticSearch():
             df_new = df_new.sort_values('score', ascending=False)
         df_existing = df_existing.reset_index()
         df_new = df_new.reset_index()
-        
+
         lf = ''
         if print_out:
             if len(df_existing) > 0:
                 print('Existing words (query: result)')
                 _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_existing.iterrows()]
                 lf = '\n'
-                
+
             if len(df_new) > 0:
                 print(f'{lf}New words (query: result)')
                 _ = [print(f'{idx}: {q} / {r} / {s}') for idx, (q, r, s) in df_new.iterrows()]
@@ -158,7 +180,7 @@ class SemanticSearch():
         else:
             print(f'{lf}Returning existing words')
             return df_existing
-        
+
 
     def quick(self, query, voca_small):
         """
